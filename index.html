@@ -1,110 +1,89 @@
 <!DOCTYPE html>
-
-<html lang="en">
+<html lang="US">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Macro Monitoring</title>
+    
+    <!-- 파비콘 -->
     <link rel="shortcut icon" href="{{ url_for('static', filename='T.ico') }}">
-    <title>Main Monitoring @Covenant</title>
 
     <style>
+        /* 반응형 스타일을 추가합니다 */
         body {
-            margin: 0;
-            padding: 0;
+            font-family: 'Arial', sans-serif;
+            margin: 50;
+            padding: 10;
+        }
+
+        h1 {
+            font-size: 2em;
+            text-align: center;
+            margin: 2px 0;
+        }
+
+        .grid-container {
             display: grid;
-            grid-template-rows: repeat(2, 1fr);
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px; /* 그리드 간격 조절 */
-            height: 100vh; /* 화면 전체 높이 */
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(20, 540px); /* 행의 높이를 600픽셀로 설정 */
+            grid-column-gap: 50px; /* 좌우 간격을 50px로 설정 */
+            grid-row-gap: 20px;
+            border: 0px solid #0f0f0f0a;
+            margin: 10px;
+            padding: 10px;
+            
         }
 
-        .grid-item {
-            overflow: hidden;
-            border: 1px solid #ddd;
-            box-sizing: border-box;
-        }
-
-        .grid-item iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-
-        .grid-item input {
-            width: 100%; /* 인풋박스 너비 조절 */
-            height: 30px; /* 인풋박스 높이 조절 */
-            padding: 5px;
-            box-sizing: border-box;
-        }
-
-        .grid-info {
+        /* 각 그리드 아이템 스타일 */
+        /* .grid-item {
+            height: 550px;
+            overflow: hidden; 
+            border: 1px solid #0f0f0f0a;
+            border-radius: 50px;
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        } */
+
+        .embed-container {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            height: auto;
         }
+
+        .embed-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 550px;
+            border: 0px solid #0f0f0f0a;
+        }
+
     </style>
 </head>
 
+
+
+
 <body>
-    <div class="grid-item" id="site1">
-        <iframe src="https://stlouisfed.shinyapps.io/macro-snapshot/#keyIndicators" frameborder="0"></iframe>
-    </div>
+    <h1>Macro Monitoring</h1>
 
-    <div class="grid-item" id="site2">
-        <iframe src="https://ecos.bok.or.kr/?ref=frism.io#/" frameborder="0"></iframe>
-    </div>
-
-    <div class="grid-item" id="site3">
-        <iframe src="https://tradingeconomics.com/countries" frameborder="0"></iframe>
-    </div>
-
-    <div class="grid-item" id="site4">
-        <iframe src="https://fss.or.kr/fss/lifeplan/statsSvings/list.do?menuNo=201020" frameborder="0"></iframe>
-    </div>
-
-    <div class="grid-item" id="site5">
-        <iframe src="https://finance.naver.com/sise/etf.naver" frameborder="0"></iframe>
-    </div>
-
-    <div class="grid-item" id="site6">
-        <div class="grid-info">
-            <input type="number" id="gridNumberInput" placeholder="Browse할 웹페이지를 선택하세요<1-5>">
-            <input type="text" id="urlInput" placeholder="URL 입력">
-            <button onclick="openURL()">Browse</button>
+    <div class="grid-container">
+        {% for embed_code in embed_codes %}
+        <div class="grid-item embed-container">
+            {{ embed_code|safe }}
         </div>
+        {% endfor %}
     </div>
 
-    <script>
-        // 초기 URL 변수 설정
-        let currentURL = "https://finance.naver.com/sise/etf.naver";
+    <form action="{{ url_for('print_grid') }}" method="get" target="_blank">
+        <button type="submit">그리드 출력</button>
+    </form>
 
-        function openURL() {
-            const urlInput = document.getElementById('urlInput');
-            const gridNumberInput = document.getElementById('gridNumberInput');
-            const url = urlInput.value;
-            const gridNumber = parseInt(gridNumberInput.value);
-
-            if (url.trim() !== '' && gridNumber >= 1 && gridNumber <= 5) {
-                // 대상 그리드 아이템 가져오기
-                const targetGridItem = document.getElementById(`site${gridNumber}`);
-
-                // 새로운 iframe 요소 생성
-                const iframe = document.createElement('iframe');
-                iframe.src = url || currentURL; // 입력된 URL이 없으면 기본 URL 사용
-                iframe.frameBorder = '0';
-
-                // 대상 그리드 아이템의 내용을 새로운 iframe으로 교체
-                targetGridItem.innerHTML = '';
-                targetGridItem.appendChild(iframe);
-
-                // 입력창 비우기
-                urlInput.value = '';
-                gridNumberInput.value = '';
-            } else {
-                alert("올바른 URL과 1부터 5까지의 숫자를 입력하세요.");
-            }
-        }
-    </script>
 </body>
+
 
 </html>
