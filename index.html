@@ -1,89 +1,178 @@
-<!DOCTYPE html>
-<html lang="US">
+<!-- MonitoringMain.html -->
 
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Macro Monitoring</title>
-    
-    <!-- 파비콘 -->
-    <link rel="shortcut icon" href="{{ url_for('static', filename='T.ico') }}">
+    <title>Main Monitoring @Covenant</title>
 
+    <!-- Add your CSS styles -->
     <style>
-        /* 반응형 스타일을 추가합니다 */
-        body {
-            font-family: 'Arial', sans-serif;
-            margin: 50;
-            padding: 10;
-        }
+        /* Your existing styles here */
 
-        h1 {
-            font-size: 2em;
-            text-align: center;
-            margin: 2px 0;
+        /* Additional styles for improved layout */
+        body {
+            margin: 0;
+            padding: 0;
         }
 
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            grid-template-rows: repeat(20, 540px); /* 행의 높이를 600픽셀로 설정 */
-            grid-column-gap: 50px; /* 좌우 간격을 50px로 설정 */
-            grid-row-gap: 20px;
-            border: 0px solid #0f0f0f0a;
-            margin: 10px;
-            padding: 10px;
-            
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 15px;
+            padding: 15px;
+            height: 100vh;
         }
 
-        /* 각 그리드 아이템 스타일 */
-        /* .grid-item {
-            height: 550px;
-            overflow: hidden; 
-            border: 1px solid #0f0f0f0a;
-            border-radius: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        } */
-
-        .embed-container {
-            position: relative;
+        .grid-item {
             overflow: hidden;
-            width: 100%;
-            height: auto;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
         }
 
-        .embed-container iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
+        .chart-container {
+            flex: 1;
             width: 100%;
-            height: 550px;
-            border: 0px solid #0f0f0f0a;
+            height: 100%;
         }
 
+        .grid-item input {
+            width: 100%;
+            height: 30px;
+            padding: 5px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        .grid-info {
+            display: flex;
+            flex-direction: column;
+        }
     </style>
+
+    <!-- Add Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
-
-
-
 <body>
-    <h1>Macro Monitoring</h1>
-
     <div class="grid-container">
-        {% for embed_code in embed_codes %}
-        <div class="grid-item embed-container">
-            {{ embed_code|safe }}
+        <div class="grid-item" id="site1">
+            <div class="chart-container" id="chartSite1"></div>
+            <p>Data Source: Example Source</p>
         </div>
-        {% endfor %}
+
+        <div class="grid-item" id="site2">
+            <div class="chart-container" id="chartSite2"></div>
+            <p>Data Source: Example Source</p>
+        </div>
+
+        <div class="grid-item" id="site3">
+            <div class="chart-container" id="chartSite3"></div>
+            <p>Data Source: Example Source</p>
+        </div>
+
+        <div class="grid-item" id="site4">
+            <div class="chart-container" id="chartSite4"></div>
+            <p>Data Source: Example Source</p>
+        </div>
+
+        <div class="grid-item" id="site5">
+            <div class="chart-container" id="chartSite5"></div>
+            <p>Data Source: Example Source</p>
+        </div>
+
+        <div class="grid-item" id="site6">
+            <div class="chart-container" id="chartSite6"></div>
+            <div class="grid-info">
+                <select id="chartTypeSelect">
+                    <option value="line">Line Chart</option>
+                    <option value="bar">Bar Chart</option>
+                    <option value="pie">Pie Chart</option>
+                    <!-- 원하는 차트 유형을 추가하세요 -->
+                </select>
+                <button onclick="updateChart()">Update Chart</button>
+            </div>
+        </div>
     </div>
 
-    <form action="{{ url_for('print_grid') }}" method="get" target="_blank">
-        <button type="submit">그리드 출력</button>
-    </form>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 초기 차트 렌더링
+            updateChart();
+        });
 
+        function updateChart() {
+            const chartType = document.getElementById('chartTypeSelect').value;
+            const chartId = 'chartSite6';
+
+            // 예시 데이터 (원하시는 차트 유형에 맞게 변경)
+            const exampleData = getExampleData(chartType);
+
+            // 차트 업데이트
+            renderChart(chartId, chartType, exampleData);
+        }
+
+        function getExampleData(chartType) {
+            switch (chartType) {
+                case 'line':
+                    return {
+                        labels: ['January', 'February', 'March', 'April', 'May'],
+                        datasets: [{
+                            label: 'Example Line Data 1',
+                            data: [30, 45, 60, 20, 80],
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 2,
+                            fill: false
+                        }, {
+                            label: 'Example Line Data 2',
+                            data: [15, 65, 40, 55, 30],
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 2,
+                            fill: false
+                        }]
+                    };
+
+                case 'bar':
+                    return {
+                        labels: ['Category 1', 'Category 2', 'Category 3', 'Category 4', 'Category 5'],
+                        datasets: [{
+                            label: 'Example Bar Data',
+                            data: [50, 30, 70, 45, 60],
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    };
+
+                case 'pie':
+                    return {
+                        labels: ['Label 1', 'Label 2', 'Label 3', 'Label 4', 'Label 5'],
+                        datasets: [{
+                            data: [15, 25, 30, 10, 20],
+                            backgroundColor: ['rgba(255, 99, 132, 0.8)', 'rgba(75, 192, 192, 0.8)', 'rgba(255, 205, 86, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(153, 102, 255, 0.8)'],
+                            borderWidth: 1
+                        }]
+                    };
+
+                default:
+                    return {}; // 기본은 빈 객체
+            }
+        }
+
+        function renderChart(chartId, chartType, data) {
+            const ctx = document.getElementById(chartId).getContext('2d');
+            new Chart(ctx, {
+                type: chartType,
+                data: data,
+                options: {
+                    // 추가적인 차트 설정을 원하면 여기에 추가하세요
+                }
+            });
+        }
+    </script>
 </body>
-
-
 </html>
