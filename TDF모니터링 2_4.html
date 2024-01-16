@@ -1,55 +1,171 @@
 <!DOCTYPE html>
 <html>
 <head>
-<style>
-    body {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        display: flex;
-        height: 100vh;
-    }
-    .container {
-        flex: 1;
-        display: grid;
-        grid-template-columns: repeat(2, 1fr); /* 2열 설정 */
-        grid-template-rows: repeat(4, 1fr); /* 4행 설정 */
-        grid-gap: 10px;
-        padding: 20px;
-    }
-    .grid-item {
-        background: #f4f4f4;
-        border: 1px solid #ddd;
-        padding: 20px;
-        text-align: center;
-    }
-</style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <style>
+        body {
+            margin: 10px;
+            padding: 0;
+            box-sizing: border-box;
+            display: grid;
+            grid-template-rows: auto 1fr; /* 상단에 제목 공간 추가 */
+            grid-template-columns: 1fr 1fr; /* 전체 페이지를 2열로 설정 */
+            height: 100vh;
+        }
+        header {
+            grid-column: 1 / -1; /* 제목을 전체 너비로 확장 */
+            text-align: center;
+            font-size: 24px;
+            padding: 10px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* 각 컨테이너를 2열로 설정 */
+            grid-template-rows: repeat(4, 1fr); /* 각 컨테이너를 4행으로 설정 */
+            grid-gap: 10px;
+            padding: 10px;
+        }
+        .grid-item {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+
+        /* 수정된 테이블 스타일 */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        td {
+            border: 1px solid black; /* 테두리를 검은색 실선으로 설정 */
+            padding: 8px;
+            font-size: 14px; /* 폰트 크기 14px 설정 */
+            color: black; /* 글자색 검은색으로 설정 */
+        }
+    </style>
 </head>
 <body>
+    <header>
+        TDF 모니터링
+    </header>
+    <input type="file" id="fileInput" style="position: absolute; top: 10px; left: 10px;"/>
 
-<div class="container">
-    <!-- 첫 번째 영역의 4행 2열 그리드 -->
-    <div class="grid-item">1</div>
-    <div class="grid-item">2</div>
-    <div class="grid-item">3</div>
-    <div class="grid-item">4</div>
-    <div class="grid-item">5</div>
-    <div class="grid-item">6</div>
-    <div class="grid-item">7</div>
-    <div class="grid-item">8</div>
-</div>
+    <div class="container">
+        <!-- A영역의 4행 2열 그리드 -->
+        <div class="grid-item" id="excelTable">A1</div> <!-- 여기에 테이블이 들어갑니다 -->
+        <div class="grid-item">A2</div>
+        <div class="grid-item">A3</div>
+        <div class="grid-item">A4</div>
+        <div class="grid-item">A5</div>
+        <div class="grid-item">A6</div>
+        <div class="grid-item">A7</div>
+        <div class="grid-item">A8</div>
+    </div>
 
-<div class="container">
-    <!-- 두 번째 영역의 4행 2열 그리드 -->
-    <div class="grid-item">1</div>
-    <div class="grid-item">2</div>
-    <div class="grid-item">3</div>
-    <div class="grid-item">4</div>
-    <div class="grid-item">5</div>
-    <div class="grid-item">6</div>
-    <div class="grid-item">7</div>
-    <div class="grid-item">8</div>
-</div>
+    <div class="container">
+        <!-- B영역의 4행 2열 그리드 -->
+        <div class="grid-item">B1</div>
+        <div class="grid-item">B2</div>
+        <div class="grid-item">B3</div>
+        <div class="grid-item">B4</div>
+        <div class="grid-item">B5</div>
+        <div class="grid-item">B6</div>
+        <div class="grid-item">B7</div>
+        <div class="grid-item">B8</div>
+    </div>
+
+    <script>
+        // 파일을 읽고 지정된 범위의 데이터를 테이블로 표시하는 기능
+        function readExcelFile(event) {
+            var file = event.target.files[0];
+            if (file) {
+                readFileAndCreateTable(file);
+            }
+        }
+    
+        // 사용자가 그리드 아이템을 클릭했을 때 실행되는 함수
+        document.getElementById('excelTable').addEventListener('click', function() {
+            var rangeInput = prompt("엑셀 파일에서 읽을 범위를 'A4:G12' 형식으로 입력해주세요:");
+            if (rangeInput) {
+                var file = document.getElementById('fileInput').files[0];
+                if (!file) {
+                    alert("파일을 먼저 선택해주세요.");
+                    return;
+                }
+                readFileAndCreateTable(file, rangeInput);
+            }
+        });
+    
+
+    // 테이블 셀의 글자 크기를 조절하는 함수
+    function adjustFontSizeForTableCells() {
+        var cells = document.querySelectorAll('#excelTable td');
+
+        cells.forEach(function(cell) {
+            var maxWidth = cell.offsetWidth; // 셀의 너비
+            var maxHeight = cell.offsetHeight; // 셀의 높이
+            var currentFontSize = parseInt(window.getComputedStyle(cell, null).getPropertyValue('font-size'));
+
+            while (cell.scrollHeight > maxHeight || cell.scrollWidth > maxWidth) {
+                currentFontSize--;
+                cell.style.fontSize = currentFontSize + 'px';
+                if (currentFontSize <= 4) break; // 글자 크기가 너무 작아지지 않도록 최소값 설정
+            }
+        });
+    }
+
+
+        // 파일을 읽고 테이블을 생성하는 함수
+        function readFileAndCreateTable(file, rangeStr = 'A4:G12') {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var data = e.target.result;
+                var workbook;
+        
+                // 파일 형식에 따라 다른 옵션을 사용하여 파일을 읽습니다.
+                if (file.name.endsWith('.xls')) {
+                    workbook = XLSX.read(data, {type: 'binary'});
+                } else {
+                    // .xlsx와 .xlsm 파일에 대한 처리
+                    workbook = XLSX.read(data, {type: 'array'});
+                }
+        
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+        
+                var range = XLSX.utils.decode_range(rangeStr);
+                var table = document.createElement('table');
+                for (var R = range.s.r; R <= range.e.r; ++R) {
+                    var row = document.createElement('tr');
+                    for (var C = range.s.c; C <= range.e.c; ++C) {
+                        var cell = worksheet[XLSX.utils.encode_cell({r: R, c: C})];
+                        var cellText = cell ? cell.v : '';
+                        var td = document.createElement('td');
+                        td.innerText = cellText;
+                        row.appendChild(td);
+                    }
+                    table.appendChild(row);
+                }
+                document.getElementById('excelTable').innerHTML = '';
+                document.getElementById('excelTable').appendChild(table);
+
+            // 테이블이 생성된 후 글자 크기 조절 함수 호출
+            adjustFontSizeForTableCells();
+
+            };
+        
+            // .xlsx와 .xlsm 파일은 배열 버퍼로 읽고, .xls 파일은 바이너리 문자열로 읽습니다.
+            if (file.name.endsWith('.xls')) {
+                reader.readAsBinaryString(file);
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+        }
+        
+    </script>
+    
 
 </body>
 </html>
