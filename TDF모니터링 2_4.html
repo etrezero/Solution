@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        display: flex;
+        height: 100vh;
+    }
+    .container {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* 2열 설정 */
+        grid-template-rows: repeat(4, 1fr); /* 4행 설정 */
+        grid-gap: 10px;
+        padding: 20px;
+    }
+    .grid-item {
+        background: #f4f4f4;
+        border: 1px solid #ddd;
+        padding: 20px;
+        text-align: center;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 첫 번째 영역의 4행 2열 그리드 -->
+    <div class="grid-item">1</div>
+    <div class="grid-item">2</div>
+    <div class="grid-item">3</div>
+    <div class="grid-item">4</div>
+    <div class="grid-item">5</div>
+    <div class="grid-item">6</div>
+    <div class="grid-item">7</div>
+    <div class="grid-item">8</div>
+</div>
+
+<div class="container">
+    <!-- 두 번째 영역의 4행 2열 그리드 -->
+    <div class="grid-item">1</div>
+    <div class="grid-item">2</div>
+    <div class="grid-item">3</div>
+    <div class="grid-item">4</div>
+    <div class="grid-item">5</div>
+    <div class="grid-item">6</div>
+    <div class="grid-item">7</div>
+    <div class="grid-item">8</div>
+</div>
+
+</body>
+</html>
