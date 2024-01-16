@@ -1,178 +1,171 @@
-<!-- MonitoringMain.html -->
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Main Monitoring @Covenant</title>
-
-    <!-- Add your CSS styles -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
     <style>
-        /* Your existing styles here */
-
-        /* Additional styles for improved layout */
         body {
-            margin: 0;
+            margin: 10px;
             padding: 0;
-        }
-
-        .grid-container {
+            box-sizing: border-box;
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(2, 1fr);
-            gap: 5px;
-            padding: 5px;
+            grid-template-rows: auto 1fr; /* 상단에 제목 공간 추가 */
+            grid-template-columns: 1fr 1fr; /* 전체 페이지를 2열로 설정 */
             height: 100vh;
         }
-
+        header {
+            grid-column: 1 / -1; /* 제목을 전체 너비로 확장 */
+            text-align: center;
+            font-size: 24px;
+            padding: 10px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* 각 컨테이너를 2열로 설정 */
+            grid-template-rows: repeat(4, 1fr); /* 각 컨테이너를 4행으로 설정 */
+            grid-gap: 10px;
+            padding: 10px;
+        }
         .grid-item {
-            overflow: hidden;
+            background: #f4f4f4;
             border: 1px solid #ddd;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
+            padding: 10px;
+            text-align: center;
         }
 
-        .chart-container {
-            flex: 1;
+        /* 수정된 테이블 스타일 */
+        table {
+            border-collapse: collapse;
             width: 100%;
-            height: 100%;
         }
-
-        .grid-item input {
-            width: 100%;
-            height: 30px;
-            padding: 5px;
-            box-sizing: border-box;
-            margin-bottom: 10px;
-        }
-
-        .grid-info {
-            display: flex;
-            flex-direction: column;
+        td {
+            border: 1px solid black; /* 테두리를 검은색 실선으로 설정 */
+            padding: 8px;
+            font-size: 14px; /* 폰트 크기 14px 설정 */
+            color: black; /* 글자색 검은색으로 설정 */
         }
     </style>
-
-    <!-- Add Chart.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <div class="grid-container">
-        <div class="grid-item" id="site1">
-            <div class="chart-container" id="chartSite1"></div>
-            <p>Data Source: Example Source</p>
-        </div>
+    <header>
+        TDF 모니터링
+    </header>
+    <input type="file" id="fileInput" style="position: absolute; top: 10px; left: 10px;"/>
 
-        <div class="grid-item" id="site2">
-            <div class="chart-container" id="chartSite2"></div>
-            <p>Data Source: Example Source</p>
-        </div>
+    <div class="container">
+        <!-- A영역의 4행 2열 그리드 -->
+        <div class="grid-item" id="excelTable">A1</div> <!-- 여기에 테이블이 들어갑니다 -->
+        <div class="grid-item">A2</div>
+        <div class="grid-item">A3</div>
+        <div class="grid-item">A4</div>
+        <div class="grid-item">A5</div>
+        <div class="grid-item">A6</div>
+        <div class="grid-item">A7</div>
+        <div class="grid-item">A8</div>
+    </div>
 
-        <div class="grid-item" id="site3">
-            <div class="chart-container" id="chartSite3"></div>
-            <p>Data Source: Example Source</p>
-        </div>
-
-        <div class="grid-item" id="site4">
-            <div class="chart-container" id="chartSite4"></div>
-            <p>Data Source: Example Source</p>
-        </div>
-
-        <div class="grid-item" id="site5">
-            <div class="chart-container" id="chartSite5"></div>
-            <p>Data Source: Example Source</p>
-        </div>
-
-        <div class="grid-item" id="site6">
-            <div class="chart-container" id="chartSite6"></div>
-            <div class="grid-info">
-                <select id="chartTypeSelect">
-                    <option value="line">Line Chart</option>
-                    <option value="bar">Bar Chart</option>
-                    <option value="pie">Pie Chart</option>
-                    <!-- 원하는 차트 유형을 추가하세요 -->
-                </select>
-                <button onclick="updateChart()">Update Chart</button>
-            </div>
-        </div>
+    <div class="container">
+        <!-- B영역의 4행 2열 그리드 -->
+        <div class="grid-item">B1</div>
+        <div class="grid-item">B2</div>
+        <div class="grid-item">B3</div>
+        <div class="grid-item">B4</div>
+        <div class="grid-item">B5</div>
+        <div class="grid-item">B6</div>
+        <div class="grid-item">B7</div>
+        <div class="grid-item">B8</div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // 초기 차트 렌더링
-            updateChart();
-        });
-
-        function updateChart() {
-            const chartType = document.getElementById('chartTypeSelect').value;
-            const chartId = 'chartSite6';
-
-            // 예시 데이터 (원하시는 차트 유형에 맞게 변경)
-            const exampleData = getExampleData(chartType);
-
-            // 차트 업데이트
-            renderChart(chartId, chartType, exampleData);
-        }
-
-        function getExampleData(chartType) {
-            switch (chartType) {
-                case 'line':
-                    return {
-                        labels: ['January', 'February', 'March', 'April', 'May'],
-                        datasets: [{
-                            label: 'Example Line Data 1',
-                            data: [30, 45, 60, 20, 80],
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            borderWidth: 2,
-                            fill: false
-                        }, {
-                            label: 'Example Line Data 2',
-                            data: [15, 65, 40, 55, 30],
-                            borderColor: 'rgba(255, 99, 132, 1)',
-                            borderWidth: 2,
-                            fill: false
-                        }]
-                    };
-
-                case 'bar':
-                    return {
-                        labels: ['Category 1', 'Category 2', 'Category 3', 'Category 4', 'Category 5'],
-                        datasets: [{
-                            label: 'Example Bar Data',
-                            data: [50, 30, 70, 45, 60],
-                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            borderWidth: 1
-                        }]
-                    };
-
-                case 'pie':
-                    return {
-                        labels: ['Label 1', 'Label 2', 'Label 3', 'Label 4', 'Label 5'],
-                        datasets: [{
-                            data: [15, 25, 30, 10, 20],
-                            backgroundColor: ['rgba(255, 99, 132, 0.8)', 'rgba(75, 192, 192, 0.8)', 'rgba(255, 205, 86, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(153, 102, 255, 0.8)'],
-                            borderWidth: 1
-                        }]
-                    };
-
-                default:
-                    return {}; // 기본은 빈 객체
+        // 파일을 읽고 지정된 범위의 데이터를 테이블로 표시하는 기능
+        function readExcelFile(event) {
+            var file = event.target.files[0];
+            if (file) {
+                readFileAndCreateTable(file);
             }
         }
-
-        function renderChart(chartId, chartType, data) {
-            const ctx = document.getElementById(chartId).getContext('2d');
-            new Chart(ctx, {
-                type: chartType,
-                data: data,
-                options: {
-                    // 추가적인 차트 설정을 원하면 여기에 추가하세요
+    
+        // 사용자가 그리드 아이템을 클릭했을 때 실행되는 함수
+        document.getElementById('excelTable').addEventListener('click', function() {
+            var rangeInput = prompt("엑셀 파일에서 읽을 범위를 'A4:G12' 형식으로 입력해주세요:");
+            if (rangeInput) {
+                var file = document.getElementById('fileInput').files[0];
+                if (!file) {
+                    alert("파일을 먼저 선택해주세요.");
+                    return;
                 }
-            });
+                readFileAndCreateTable(file, rangeInput);
+            }
+        });
+    
+
+    // 테이블 셀의 글자 크기를 조절하는 함수
+    function adjustFontSizeForTableCells() {
+        var cells = document.querySelectorAll('#excelTable td');
+
+        cells.forEach(function(cell) {
+            var maxWidth = cell.offsetWidth; // 셀의 너비
+            var maxHeight = cell.offsetHeight; // 셀의 높이
+            var currentFontSize = parseInt(window.getComputedStyle(cell, null).getPropertyValue('font-size'));
+
+            while (cell.scrollHeight > maxHeight || cell.scrollWidth > maxWidth) {
+                currentFontSize--;
+                cell.style.fontSize = currentFontSize + 'px';
+                if (currentFontSize <= 4) break; // 글자 크기가 너무 작아지지 않도록 최소값 설정
+            }
+        });
+    }
+
+
+        // 파일을 읽고 테이블을 생성하는 함수
+        function readFileAndCreateTable(file, rangeStr = 'A4:G12') {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var data = e.target.result;
+                var workbook;
+        
+                // 파일 형식에 따라 다른 옵션을 사용하여 파일을 읽습니다.
+                if (file.name.endsWith('.xls')) {
+                    workbook = XLSX.read(data, {type: 'binary'});
+                } else {
+                    // .xlsx와 .xlsm 파일에 대한 처리
+                    workbook = XLSX.read(data, {type: 'array'});
+                }
+        
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+        
+                var range = XLSX.utils.decode_range(rangeStr);
+                var table = document.createElement('table');
+                for (var R = range.s.r; R <= range.e.r; ++R) {
+                    var row = document.createElement('tr');
+                    for (var C = range.s.c; C <= range.e.c; ++C) {
+                        var cell = worksheet[XLSX.utils.encode_cell({r: R, c: C})];
+                        var cellText = cell ? cell.v : '';
+                        var td = document.createElement('td');
+                        td.innerText = cellText;
+                        row.appendChild(td);
+                    }
+                    table.appendChild(row);
+                }
+                document.getElementById('excelTable').innerHTML = '';
+                document.getElementById('excelTable').appendChild(table);
+
+            // 테이블이 생성된 후 글자 크기 조절 함수 호출
+            adjustFontSizeForTableCells();
+
+            };
+        
+            // .xlsx와 .xlsm 파일은 배열 버퍼로 읽고, .xls 파일은 바이너리 문자열로 읽습니다.
+            if (file.name.endsWith('.xls')) {
+                reader.readAsBinaryString(file);
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
         }
+        
     </script>
+    
+
 </body>
 </html>
