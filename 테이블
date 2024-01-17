@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<input type="file" id="fileInput" accept=".xls,.xlsx,.xlsm"/>
+<button onclick="loadAndFillExcelData()">Load and Fill Excel Data</button>
+
+<!-- 예시 HTML 테이블 -->
+<table id="excelDataTable">
+    <tr>
+        <td id="cell1"></td>
+        <td id="cell2"></td>
+        <td id="cell3"></td>
+    </tr>
+    <tr>
+        <td id="cell4"></td>
+        <td id="cell5"></td>
+        <td id="cell6"></td>
+    </tr>
+    <!-- 추가 행과 셀이 필요한 경우 여기에 -->
+</table>
+
+<script>
+    function loadAndFillExcelData() {
+        var fileInput = document.getElementById('fileInput');
+        var reader = new FileReader();
+
+        reader.onload = function(e) {
+            var data = e.target.result;
+            var workbook = XLSX.read(data, {type: 'binary'});
+            var firstSheetName = workbook.SheetNames[0];
+            var worksheet = workbook.Sheets[firstSheetName];
+            
+            var range = XLSX.utils.decode_range(worksheet['!ref']); // 전체 범위 읽기
+            var cellIndex = 1;
+
+            for(var R = range.s.r; R <= range.e.r; ++R) {
+                for(var C = range.s.c; C <= range.e.c; ++C) {
+                    var cellRef = XLSX.utils.encode_cell({r: R, c: C});
+                    var cell = worksheet[cellRef];
+                    var cellValue = cell ? cell.v : '';
+                    
+                    var cellElement = document.getElementById('cell' + cellIndex);
+                    if(cellElement) {
+                        cellElement.textContent = cellValue;
+                    }
+                    cellIndex++;
+                }
+            }
+        };
+
+        reader.readAsBinaryString(fileInput.files[0]);
+    }
+</script>
+
+</body>
+</html>
