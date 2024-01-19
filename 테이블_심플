@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div style="display: flex; align-items: center;">
+    <input type="file" id="fileInput" accept=".xls,.xlsx,.xlsm"/>
+    <input type="text" id="rangeInput" placeholder="셀 범위(예: A5:G12)">
+    <select id="formatSelect">
+        <option value="text">텍스트</option>
+        <option value="number">숫자</option>
+        <option value="percent">퍼센트</option>
+        <option value="date">날짜</option>
+    </select>
+    <button onclick="loadAndFillExcelData()">Load and Fill Excel Data</button>
+</div>
+
+<style type="text/css">
+    .tg  {border-collapse:collapse;border-spacing:0;}
+    .tg td{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px;
+      overflow:hidden;padding:10px 5px;word-break:normal;}
+    .tg th{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px;
+      font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;}
+</style>
+
+<div id="tableTitle" style="text-align: left; font-weight: bold; font-size: 15px;"> <수익률> </div>
+<table class="tg" id="excelTable">
+    <thead>
+        <tr>
+            <th class="tg-1*1">한투_포커스</th>
+            <th class="tg-1*2">ITD</th>
+            <th class="tg-1*3">1W</th>
+            <th class="tg-1*4">1M</th>
+            <th class="tg-1*5">3M</th>
+            <th class="tg-1*6">YTD</th>
+            <th class="tg-1*7">1Y</th>
+        </tr>
+    </thead>
+    <tbody>
+    </tbody>
+</table>
+
+<script>
+    // 이전에 선택된 파일과 셀 범위 입력창의 최근 내용, 데이터 표시 형식을 기억하기 위한 변수
+    var previousFile;
+    var previousRange;
+    var previousFormat = 'text'; // 초기값은 '텍스트'
+
+    // 페이지 로드 시 이전 설정 복원
+    window.onload = function() {
+        document.getElementById('rangeInput').value = previousRange || '';
+        document.getElementById('formatSelect').value = previousFormat || 'text';
+    };
+
+    function loadAndFillExcelData() {
+        var rangeInput = document.getElementById('rangeInput').value;
+        var fileInput = document.getElementById('fileInput');
+        var formatSelect = document.getElementById('formatSelect');
+        var format = formatSelect.value; // 선택한 표시 형식
+
+        var file = fileInput.files[0];
+        if (!file) {
+            alert("먼저 파일을 선택해주세요.");
+            return;
+        }
+
+        previousFile = file; // 이전에 선택된 파일 기억
+        previousRange = rangeInput; // 이전에 입력된 셀 범위 기억
+        previousFormat = format; // 이전에 선택된 데이터 표시 형식 기억
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var data = new Uint8Array(e.target.result);
+            var workbook = XLSX.read(data, { type: 'array' });
+            var firstSheetName = workbook.SheetNames[0]; // 첫 번째 시트의 이름
+            var worksheet = workbook.Sheets[firstSheetName]; // 첫 번째 시트
+
+            var range = XLSX.utils.decode_range(rangeInput);
+            var tableData = [];
+
+            for (var R = range.s.r; R <= range.e.r; ++R) {
+                var rowData = [];
+                for (var C = range.s.c; C <= range.e.c; ++C) {
+                    var cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                    var cell = worksheet[cellRef];
+                    var cellValue = cell ? cell.v : '';
+
+                    // 첫 번째 열은 텍스트로 유지하고 가운데 정렬로 설정
+                    if (C === range.s.c) {
+                        rowData.push({ value: cellValue, format: 'text', align: 'center' });
+                    } else {
+                        // 선택한 표시 형식에 따라 데이터 형식 변환
+                        if (format === 'number') {
+                            cellValue = parseFloat(cellValue);
+                        } else if (format === 'percent') {
+                            // NaN%를 빈 칸으로 처리
+                            if (cellValue === 'NaN%') {
+                                cellValue = '';
+                            } else {
+                                cellValue = (parseFloat(cellValue) * 100).toFixed(2) + '%';
+                            }
+                        } else if (format === 'date') {
+                            cellValue = new Date(cellValue).toLocaleDateString();
+                        }
+                        rowData.push({ value: cellValue, format: format });
+                    }
+                }
+                tableData.push(rowData);
+            }
+
+            fillTable(tableData);
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function fillTable(data) {
+        var tableBody = document.querySelector('table#excelTable tbody');
+        tableBody.innerHTML = '';
+
+        for (var i = 0; i < data.length; i++) {
+            var row = document.createElement('tr');
+            for (var j = 0; j < data[i].length; j++) {
+                var cellData = data[i][j];
+                var cell = document.createElement(i === 0 ? 'th' : 'td');
+                cell.textContent = cellData.value;
+                cell.style.textAlign = cellData.align || 'left'; // 정렬 설정
+                row.appendChild(cell);
+            }
+            tableBody.appendChild(row);
+        }
+    }
+</script>
+
+</body>
+</html>
