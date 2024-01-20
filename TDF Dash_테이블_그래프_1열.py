@@ -42,13 +42,17 @@ def create_data_table(file_path, sheet_name, cell_range, percent_columns=None, f
         'minWidth': column_width,  # 최소 너비 설정
         'maxWidth': column_width,  # 최대 너비 설정
     }
-    columns = [{"name": i, "id": i, "type": "numeric", "format": Format(precision=0, scheme=Scheme.decimal)} for i in df.columns]
+
+    # 첫번째 열을 텍스트로 표시
+    columns = [{"name": i, "id": i, "type": "text"} for i in df.columns]
+
     if percent_columns:
         for idx in percent_columns:
             adjusted_idx = idx - 1
             if 0 <= adjusted_idx < len(columns):
                 columns[adjusted_idx]['type'] = 'numeric'
                 columns[adjusted_idx]['format'] = Format(precision=2, scheme=Scheme.percentage)
+
     return dash_table.DataTable(
         data=df.to_dict('records'),
         columns=columns,
@@ -65,6 +69,9 @@ df_table2 = read_data_from_excel(file_path, sheet_name, 'I4:O12')
 df_table3 = read_data_from_excel(file_path, sheet_name, 'Q4:U13')
 df_table4 = read_data_from_excel(file_path, sheet_name, 'W4:AA13')
 
+# 그래프 형식 (Line, Bar, Dot, Pie) 목록
+graph_types = ['Line', 'Bar', 'Dot', 'Pie']
+
 # 앱 레이아웃 설정
 app.layout = html.Div([
     html.Div(children='TDF 모니터링 from TDF2 Dash'),
@@ -77,6 +84,11 @@ app.layout = html.Div([
                 id='yaxis-column-table1',
                 options=[{'label': i, 'value': i} for i in df_table1.columns[1:]],  # 첫 번째 열 제외
                 value=df_table1.columns[1]
+            ),
+            dcc.Dropdown(
+                id='graph-type-table1',
+                options=[{'label': i, 'value': i} for i in graph_types],
+                value='Line'
             ),
             dcc.Graph(id='line-graph-table1')
         ])
@@ -91,6 +103,11 @@ app.layout = html.Div([
                 options=[{'label': i, 'value': i} for i in df_table2.columns[1:]],  # 첫 번째 열 제외
                 value=df_table2.columns[1]
             ),
+            dcc.Dropdown(
+                id='graph-type-table2',
+                options=[{'label': i, 'value': i} for i in graph_types],
+                value='Line'
+            ),
             dcc.Graph(id='line-graph-table2')
         ])
     ], className='grid-item'),
@@ -102,6 +119,11 @@ app.layout = html.Div([
                 id='yaxis-column-table3',
                 options=[{'label': i, 'value': i} for i in df_table3.columns[1:]],  # 첫 번째 열 제외
                 value=df_table3.columns[1]
+            ),
+            dcc.Dropdown(
+                id='graph-type-table3',
+                options=[{'label': i, 'value': i} for i in graph_types],
+                value='Line'
             ),
             dcc.Graph(id='line-graph-table3')
         ])
@@ -115,6 +137,11 @@ app.layout = html.Div([
                 options=[{'label': i, 'value': i} for i in df_table4.columns[1:]],  # 첫 번째 열 제외
                 value=df_table4.columns[1]
             ),
+            dcc.Dropdown(
+                id='graph-type-table4',
+                options=[{'label': i, 'value': i} for i in graph_types],
+                value='Line'
+            ),
             dcc.Graph(id='line-graph-table4')
         ])
     ], className='grid-item')
@@ -123,34 +150,66 @@ app.layout = html.Div([
 # 콜백 함수 정의
 @app.callback(
     Output('line-graph-table1', 'figure'),
-    [Input('yaxis-column-table1', 'value')]
+    [Input('yaxis-column-table1', 'value'),
+     Input('graph-type-table1', 'value')]
 )
-def update_graph_table1(yaxis_column_name):
-    fig = px.line(df_table1, x=df_table1.columns[0], y=yaxis_column_name)
+def update_graph_table1(yaxis_column_name, graph_type):
+    if graph_type == 'Dot':
+        fig = px.scatter(df_table1, x=df_table1.columns[0], y=yaxis_column_name)
+    elif graph_type == 'Bar':
+        fig = px.bar(df_table1, x=df_table1.columns[0], y=yaxis_column_name)
+    elif graph_type == 'Pie':
+        fig = px.pie(df_table1, names=df_table1.columns[0], values=yaxis_column_name)
+    else:
+        fig = px.line(df_table1, x=df_table1.columns[0], y=yaxis_column_name)
     return fig
 
 @app.callback(
     Output('line-graph-table2', 'figure'),
-    [Input('yaxis-column-table2', 'value')]
+    [Input('yaxis-column-table2', 'value'),
+     Input('graph-type-table2', 'value')]
 )
-def update_graph_table2(yaxis_column_name):
-    fig = px.line(df_table2, x=df_table2.columns[0], y=yaxis_column_name)
+def update_graph_table2(yaxis_column_name, graph_type):
+    if graph_type == 'Dot':
+        fig = px.scatter(df_table2, x=df_table2.columns[0], y=yaxis_column_name)
+    elif graph_type == 'Bar':
+        fig = px.bar(df_table2, x=df_table2.columns[0], y=yaxis_column_name)
+    elif graph_type == 'Pie':
+        fig = px.pie(df_table2, names=df_table2.columns[0], values=yaxis_column_name)
+    else:
+        fig = px.line(df_table2, x=df_table2.columns[0], y=yaxis_column_name)
     return fig
 
 @app.callback(
     Output('line-graph-table3', 'figure'),
-    [Input('yaxis-column-table3', 'value')]
+    [Input('yaxis-column-table3', 'value'),
+     Input('graph-type-table3', 'value')]
 )
-def update_graph_table3(yaxis_column_name):
-    fig = px.line(df_table3, x=df_table3.columns[0], y=yaxis_column_name)
+def update_graph_table3(yaxis_column_name, graph_type):
+    if graph_type == 'Dot':
+        fig = px.scatter(df_table3, x=df_table3.columns[0], y=yaxis_column_name)
+    elif graph_type == 'Bar':
+        fig = px.bar(df_table3, x=df_table3.columns[0], y=yaxis_column_name)
+    elif graph_type == 'Pie':
+        fig = px.pie(df_table3, names=df_table3.columns[0], values=yaxis_column_name)
+    else:
+        fig = px.line(df_table3, x=df_table3.columns[0], y=yaxis_column_name)
     return fig
 
 @app.callback(
     Output('line-graph-table4', 'figure'),
-    [Input('yaxis-column-table4', 'value')]
+    [Input('yaxis-column-table4', 'value'),
+     Input('graph-type-table4', 'value')]
 )
-def update_graph_table4(yaxis_column_name):
-    fig = px.line(df_table4, x=df_table4.columns[0], y=yaxis_column_name)
+def update_graph_table4(yaxis_column_name, graph_type):
+    if graph_type == 'Dot':
+        fig = px.scatter(df_table4, x=df_table4.columns[0], y=yaxis_column_name)
+    elif graph_type == 'Bar':
+        fig = px.bar(df_table4, x=df_table4.columns[0], y=yaxis_column_name)
+    elif graph_type == 'Pie':
+        fig = px.pie(df_table4, names=df_table4.columns[0], values=yaxis_column_name)
+    else:
+        fig = px.line(df_table4, x=df_table4.columns[0], y=yaxis_column_name)
     return fig
 
 # 앱 실행
