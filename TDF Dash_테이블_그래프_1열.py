@@ -46,16 +46,16 @@ def create_data_table(file_path, sheet_name, cell_range, percent_columns=None, f
     # 첫 번째 열을 텍스트로 표시
     columns = [{"name": i, "id": i, "type": "text" if i == df.columns[0] else "numeric"} for i in df.columns]
 
+    # 모든 열을 정수 숫자로 설정 (첫 번째 열은 텍스트로 설정됨)
+    for column in columns[1:]:
+        column['format'] = Format(precision=0, scheme=Scheme.fixed)
+
+    # 퍼센트 컬럼으로 지정한 열만 소수점 2자리까지 보이도록 설정
     if percent_columns:
         for idx in percent_columns:
             adjusted_idx = idx - 1
             if 0 <= adjusted_idx < len(columns):
                 columns[adjusted_idx]['format'] = Format(precision=2, scheme=Scheme.percentage)
-
-    # 숫자로 표시되는 열의 포맷 설정
-    for column in columns:
-        if column['type'] == 'numeric':
-            column['format'] = Format(precision=0, scheme=Scheme.fixed)
 
     return dash_table.DataTable(
         data=df.to_dict('records'),
