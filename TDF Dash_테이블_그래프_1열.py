@@ -78,7 +78,7 @@ graph_types = ['Line', 'Bar', 'Dot', 'Pie']
 
 # 앱 레이아웃 설정
 app.layout = html.Div([
-    html.Div(children='TDF 모니터링 from TDF2 Dash'),
+    html.Div(children='TDF 모니터링 from TDF Dash_테이블_그래프_1열', style={'fontSize': 25, 'textAlign': 'center'}),
 
     # 첫 번째 테이블과 그래프
     html.Div([
