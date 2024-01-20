@@ -37,21 +37,25 @@ def create_data_table(file_path, sheet_name, cell_range, percent_columns=None, f
     cell_style = {
         'whiteSpace': 'normal',
         'textAlign': 'center',
-        'fontSize': 14, #font_size,
+        'fontSize': 14,
         'width': column_width,  # 모든 열에 동일한 너비 적용
         'minWidth': column_width,  # 최소 너비 설정
         'maxWidth': column_width,  # 최대 너비 설정
     }
 
-    # 첫번째 열을 텍스트로 표시
-    columns = [{"name": i, "id": i, "type": "text"} for i in df.columns]
+    # 첫 번째 열을 텍스트로 표시
+    columns = [{"name": i, "id": i, "type": "text" if i == df.columns[0] else "numeric"} for i in df.columns]
 
     if percent_columns:
         for idx in percent_columns:
             adjusted_idx = idx - 1
             if 0 <= adjusted_idx < len(columns):
-                columns[adjusted_idx]['type'] = 'numeric'
                 columns[adjusted_idx]['format'] = Format(precision=2, scheme=Scheme.percentage)
+
+    # 숫자로 표시되는 열의 포맷 설정
+    for column in columns:
+        if column['type'] == 'numeric':
+            column['format'] = Format(precision=0, scheme=Scheme.fixed)
 
     return dash_table.DataTable(
         data=df.to_dict('records'),
@@ -59,7 +63,7 @@ def create_data_table(file_path, sheet_name, cell_range, percent_columns=None, f
         page_size=10,
         style_cell=cell_style,
         style_header=header_style,
-    )
+)
 
 # 테이블 1의 데이터 불러오기
 df_table1 = read_data_from_excel(file_path, sheet_name, 'A4:G12')
