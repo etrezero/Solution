@@ -32,10 +32,33 @@ import warnings
 # 경고 메시지 무시
 warnings.filterwarnings("ignore", category=UserWarning)
 
+
+
 # 파일 경로와 시트 이름 정의
-file_path = r'C:\Users\USER\Desktop\Excel Project\templates\TDF_템플릿.xlsx'
-# file_path = r'C:\Users\서재영\Documents\Python Scripts\data\TDF_템플릿.xlsx'
+From_path = r'C:\Users\서재영\Documents\Python Scripts\data\0.TDF_모니터링_FN스펙트럼.xlsx'
+sheet_From = '요약'
+
+file_path = r'C:\Users\서재영\Documents\Python Scripts\data\Temp.xlsx'
 sheet_name = '요약'
+
+# 데이터 읽어오기
+try:
+    From_df = pd.read_excel(From_path, sheet_name=sheet_From)
+except Exception as e:
+    print(f"Error reading data from {From_path}: {e}")
+    exit()
+
+# 데이터 복사
+copied_data = From_df.copy()
+
+# 새로운 Excel 파일에 데이터 쓰기
+try:
+    with pd.ExcelWriter(file_path, engine='openpyxl', mode='w') as writer:
+        copied_data.to_excel(writer, sheet_name=sheet_name, index=False)
+except Exception as e:
+    print(f"Error writing data to {file_path}: {e}")
+
+
 
 # 앱 초기화
 app = Dash(__name__)
@@ -108,7 +131,7 @@ def create_data_table(file_path, sheet_name, cell_range, percent_columns, font_s
 # 테이블의 데이터 불러오기
 df_table1 = read_data_from_excel(file_path, sheet_name, 'A3:G11')
 df_table2 = read_data_from_excel(file_path, sheet_name, 'I3:O11')
-df_table3 = read_data_from_excel(file_path, sheet_name, 'Q3:U11')
+df_table3 = read_data_from_excel(file_path, sheet_name, 'Q3:U13')
 df_table4 = read_data_from_excel(file_path, sheet_name, 'W3:AA12')
 df_table5 = read_data_from_excel(file_path, sheet_name, 'AC3:AK9')
 df_table6 = read_data_from_excel(file_path, sheet_name, 'AW43:BE58')
@@ -126,7 +149,7 @@ df_G6 = df_table6.iloc[:-1]
 table_cell = {
     'table1': 'A3:G11',
     'table2': 'I3:O11',
-    'table3': 'Q3:U12',
+    'table3': 'Q3:U13',
     'table4': 'W3:AA12',
     'table5': 'AC3:AK9',
     'table6': 'AW43:BE58'
@@ -165,7 +188,7 @@ table_style = {
 }
 
 # 그래프 형식 (Line, Bar, Dot, Pie) 목록
-graph_types = ['Line', 'Bar', 'Dot', 'Pie','Heatmap','Histogram']
+graph_types = ['Line', 'Bar', 'Dot', 'Pie',]  #'Heatmap','Histogram'
 
 # 그래프 컨테이너 스타일
 graph_container_style = {
@@ -179,7 +202,7 @@ graph_container_style = {
 # 그래프 스타일 설정
 graph_style = {
     'margin': '0 auto',
-    'margin-top': '0%',
+    'margin-top': '-8%',
     'width': '85%',
     'z-index': 1,  # 이 요소가 다른 요소 위에 위치함
 }
@@ -193,6 +216,8 @@ dropdown_container_style = {
     'top': '70%',  # 상단에서 50% 위치
     'transform': 'translateY(-50%)',  # Y축으로 -50% 이동하여 중앙 정렬
     'border': '0px solid black',  # 바더 라인 추가
+    'fontSize': '12px',
+    'fontWeight': 'bold',
     'z-index': 3,  # 이 요소가 다른 요소 위에 위치함
 }
 
@@ -201,19 +226,22 @@ dropdown_style = {
     'width': '100%',  # 각 드롭다운의 너비
     'marginRight': '1%',  # 드롭다운 사이의 간격
     'textAlign': 'center',
+    'fontSize': '12px',
+    'fontWeight': 'bold',
+
 }
 
 
 # 앱 레이아웃 설정
 app.layout = html.Div([
-    html.Div(children='한국투자 TDF ETF 포커스 모니터링', 
+    html.Div(children='         ', 
              style={
                  'fontSize': 25, 
                  'textAlign': 'center', 
                  'position': 'sticky', 
                  'top': '0', 
                  'zIndex': '100',
-                 'background-color': 'white'
+                 'background-color': ''
              }),
     
     # 테이블 1 
