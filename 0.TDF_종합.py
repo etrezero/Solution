@@ -129,7 +129,6 @@ for code in codes:
 
 
 
-
 # 앱 레이아웃 정의---------------------------------------
 app.layout = html.Div([
     # 그리드 레이아웃
@@ -166,7 +165,6 @@ app.layout = html.Div([
      Input('grid-6', 'n_clicks'),
     ]
 )
-
 def display_tab_content(
     grid00_clicks, 
     grid1_clicks, 
@@ -176,145 +174,120 @@ def display_tab_content(
     grid5_clicks,
     grid6_clicks,
     ):
-    
     ctx = dash.callback_context
 
     if not ctx.triggered:
-    # 초기 상태에서 중앙에 이미지를 표시
+        # 초기 상태에서 중앙에 이미지를 표시
         return html.Div([
-        html.Img(src='/BGR.png', style=image_style),
+            # html.Img(src='/BGR.png', style=image_style),
         ], style=img_container_style)
-
 
     grid_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
-    
-    # # 탭 콜백 함수
-    @app.callback(Output('tab-content', 'children'), [Input('tabs', 'value')])
-    def update_tab_content(selected_tab):
-        return 탭_layout[selected_tab]
-    
-
-    #탭 00
-    if grid_id == 'grid-00':
-        return 메인_app.layout  # TDF 앱의 레이아웃 반환
-
-    #탭 1
-    if grid_id == 'grid-1':
-        return 포커스_app.layout  # TDF 앱의 레이아웃 반환
-    
-
-    #탭 2
-    elif grid_id == 'grid-2':
-        return TRP_app.layout  # TDF 앱의 레이아웃 반환
-
-    #탭 3
-    elif grid_id == 'grid-3':
-        return html.Div(
-        style={
-            'margin': '0',
-            'padding': '0',
-            'display': 'grid',
-            'gridTemplateRows': 'repeat(2, 1fr)',
-            'gridTemplateColumns': 'repeat(3, 1fr)',
-            'gap': '10px',
-            'height': '100vh',
-        },
-        children=[
-            html.Div(
-                className="grid-item",
-                id=f"site{i}",
+    # 각 탭의 레이아웃을 반환하는 함수
+    def get_tab_layout(grid_id):
+        if grid_id == 'grid-00':
+            return 메인_app.layout
+        elif grid_id == 'grid-1':
+            return 포커스_app.layout
+        elif grid_id == 'grid-2':
+            return TRP_app.layout
+        elif grid_id == 'grid-3':
+            return html.Div(
+                style={
+                    'margin': '0',
+                    'padding': '0',
+                    'display': 'grid',
+                    'gridTemplateRows': 'repeat(2, 1fr)',
+                    'gridTemplateColumns': 'repeat(3, 1fr)',
+                    'gap': '10px',
+                    'height': '100vh',
+                },
                 children=[
-                    html.Iframe(
-                        src=iframe_src[i-1],
-                        style={'width': '100%', 'height': '100%', 'border': 'none'}
+                    html.Div(
+                        className="grid-item",
+                        id=f"site{i}",
+                        children=[
+                            html.Iframe(
+                                src=iframe_src[i-1],
+                                style={'width': '100%', 'height': '100%', 'border': 'none'}
+                            )
+                        ]
+                    ) for i in range(1, 6)
+                ] + [
+                    html.Div(
+                        className="grid-item grid-info",
+                        children=[
+                            dcc.Dropdown(
+                                id='gridNumberInput',
+                                options=[{'label': i, 'value': i} for i in range(1, 6)],
+                                placeholder='Browse할 웹페이지를 선택하세요',
+                                style={'width': '70%', 'padding': '5px'}
+                            ),
+                            dcc.Input(
+                                type='text',
+                                id='urlInput',
+                                placeholder='URL 입력',
+                                style={'width': '45%', 'height': '4%', 'padding': '10px', 'margin' : '1%'}
+                            ),
+                            html.Button('Browse', id='browse-button', n_clicks=0),
+                        ]
                     )
                 ]
-            ) for i in range(1, 6)
-        ] + [
-            html.Div(
-            className="grid-item grid-info",
-            children=[
-                dcc.Dropdown(
-                    id='gridNumberInput',
-                    options=[{'label': i, 'value': i} for i in range(1, 6)],
-                    placeholder='Browse할 웹페이지를 선택하세요',
-                    style={'width': '70%', 'padding': '5px'}
-                ),
-                dcc.Input(
-                    type='text',
-                    id='urlInput',
-                    placeholder='URL 입력',
-                    style={'width': '45%', 'height': '4%', 'padding': '10px', 'margin' : '1%'}
-                ),
-                html.Button('Browse', id='browse-button', n_clicks=0),
-            ]
-        )
-        ]
-        )
-                
-                
-                
-    #탭 4
-    elif grid_id == 'grid-4':
-        return html.Div([
-            html.H3('FRED Macro'),
-            html.Div(
-                [html.Div(iframe) for iframe in embed_iframes],
-                style={
-                    'display': 'grid',
-                    'gridTemplateColumns': 'repeat(2, 1fr)',
-                    'gridTemplateRows': 'repeat(20, 540px)',
-                    'gridColumnGap': '50px',
-                    'gridRowGap': '20px',
-                    'margin': '10px',
-                    'padding': '10px'
-                }
             )
-        ])
+        elif grid_id == 'grid-4':
+            return html.Div([
+                html.H3('FRED Macro'),
+                html.Div(
+                    [html.Div(iframe) for iframe in embed_iframes],
+                    style={
+                        'display': 'grid',
+                        'gridTemplateColumns': 'repeat(2, 1fr)',
+                        'gridTemplateRows': 'repeat(20, 540px)',
+                        'gridColumnGap': '50px',
+                        'gridRowGap': '20px',
+                        'margin': '10px',
+                        'padding': '10px'
+                    }
+                )
+            ])
+        elif grid_id == 'grid-5':
+            return html.Div([
+                html.H3('S자산배분'),
+                html.Div(
+                    [html.Div() ],
+                    style={
+                        'display': 'grid',
+                        'gridTemplateColumns': 'repeat(2, 1fr)',
+                        'gridColumnGap': '50px',
+                        'gridRowGap': '20px',
+                        'margin': '10px',
+                        'padding': '10px',
+                        'gridboderline': '1px',
+                    }
+                )
+            ])
+        elif grid_id == 'grid-6':
+            return html.Div([
+                html.H3('DB자산배분'),
+                html.Div(
+                    [html.Div() ],
+                    style={
+                        'display': 'grid',
+                        'gridTemplateColumns': 'repeat(2, 1fr)',
+                        'gridColumnGap': '50px',
+                        'gridRowGap': '20px',
+                        'margin': '10px',
+                        'padding': '10px',
+                        'gridboderline': '1px',
+                    }
+                )
+            ])
+
+    # 해당하는 탭의 레이아웃을 반환
+    return get_tab_layout(grid_id)
 
 
-
-    #탭 5
-    elif grid_id == 'grid-5':
-        return html.Div([
-            html.H3('S자산배분'),
-            html.Div(
-                [html.Div(        ) ],
-                style={
-                    'display': 'grid',
-                    'gridTemplateColumns': 'repeat(2, 1fr)',
-                    # 'gridTemplateRows': 'repeat(20, 540px)',
-                    'gridColumnGap': '50px',
-                    'gridRowGap': '20px',
-                    'margin': '10px',
-                    'padding': '10px',
-                    'gridboderline': '1px',
-                    
-                }
-            )
-        ])
-        
-        
-    #탭 6
-    elif grid_id == 'grid-6':
-        return html.Div([
-            html.H3('DB자산배분'),
-            html.Div(
-                [html.Div(        ) ],
-                style={
-                    'display': 'grid',
-                    'gridTemplateColumns': 'repeat(2, 1fr)',
-                    # 'gridTemplateRows': 'repeat(20, 540px)',
-                    'gridColumnGap': '50px',
-                    'gridRowGap': '20px',
-                    'margin': '10px',
-                    'padding': '10px',
-                    'gridboderline': '1px',
-                    
-                }
-            )
-        ])
 
 
 

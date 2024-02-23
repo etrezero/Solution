@@ -78,6 +78,17 @@ def read_data_from_excel(path_Temp_TDF, sheet_temp, cell_range):
 
     # df.columns = [str(col) for col in df.columns]
 
+
+# 테이블의 데이터 불러오기
+df_table1 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'A3:G11')
+df_table2 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'I3:O11')
+df_table3 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'Q3:U11')
+df_table4 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'W3:AA12')
+df_table5 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'AC3:AK9')
+df_table6 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'AW43:BE58')
+
+
+
 # 데이터 테이블을 생성하는 함수
 def create_data_table(path_Temp_TDF, sheet_temp, cell_range, percent_columns, font_size=None, header_style=None):
     df = read_data_from_excel(path_Temp_TDF, sheet_temp, cell_range)
@@ -86,6 +97,22 @@ def create_data_table(path_Temp_TDF, sheet_temp, cell_range, percent_columns, fo
     num_columns = len(df.columns)
     column_width = "{}%".format(100 / num_columns)
             
+      
+    # 첫 번째 열을 텍스트로 표시
+    columns = [{"name": str(i), "id": str(i), "type": "text" if i == df.columns[0] else "numeric"} for i in df.columns]
+
+    # 모든 열을 numeric으로 설정 (첫 번째 열은 텍스트로 설정됨)
+    for column in columns[1:]:
+        column['type'] = 'numeric'
+        column['format'] = Format(precision=0, scheme=Scheme.fixed)  # 모든 숫자 열의 소수 자릿수를 0으로 설정
+
+    # 퍼센트 컬럼으로 지정한 열만 소수점 2자리까지 보이도록 설정
+    if percent_columns:
+        for idx in percent_columns:
+            adjusted_idx = idx - 1
+            if 0 <= adjusted_idx < len(columns):
+                columns[adjusted_idx]['format'] = Format(precision=1, scheme=Scheme.percentage)
+
     cell_style = {
         'width': column_width,
         'minWidth': column_width,
@@ -106,22 +133,8 @@ def create_data_table(path_Temp_TDF, sheet_temp, cell_range, percent_columns, fo
         'background-color': '#3762AF', #'darkblue'
         # 'background-color': '#4BACC6', #연한 비취색
     }
-      
-    # 첫 번째 열을 텍스트로 표시
-    columns = [{"name": str(i), "id": str(i), "type": "text" if i == df.columns[0] else "numeric"} for i in df.columns]
 
-    # 모든 열을 numeric으로 설정 (첫 번째 열은 텍스트로 설정됨)
-    for column in columns[1:]:
-        column['type'] = 'numeric'
-        column['format'] = Format(precision=0, scheme=Scheme.fixed)  # 모든 숫자 열의 소수 자릿수를 0으로 설정
-
-    # 퍼센트 컬럼으로 지정한 열만 소수점 2자리까지 보이도록 설정
-    if percent_columns:
-        for idx in percent_columns:
-            adjusted_idx = idx - 1
-            if 0 <= adjusted_idx < len(columns):
-                columns[adjusted_idx]['format'] = Format(precision=1, scheme=Scheme.percentage)
-
+    
     return dash_table.DataTable(
         data=df.to_dict('records'),
         columns=columns,
@@ -130,14 +143,6 @@ def create_data_table(path_Temp_TDF, sheet_temp, cell_range, percent_columns, fo
         style_header=style_header,
     )
 
-
-# 테이블의 데이터 불러오기
-df_table1 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'A3:G11')
-df_table2 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'I3:O11')
-df_table3 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'Q3:U11')
-df_table4 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'W3:AA12')
-df_table5 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'AC3:AK9')
-df_table6 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'AW43:BE58')
 
 
 # 마지막 행이 없는 데이터 - 그래프용

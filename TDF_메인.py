@@ -1,5 +1,5 @@
 # 필요한 패키지 임포트
-from dash import Dash, html, dash_table, Input, Output, dcc 
+from dash import Dash, dcc, html, dash_table, Input, Output
 from dash.dash_table.Format import Format, Scheme
 import plotly.express as px
 import plotly.graph_objects as go
@@ -10,17 +10,29 @@ import warnings
 from tqdm import tqdm
 import os
 from openpyxl import Workbook
-from flask import Flask
-from openpyxl.utils import get_column_letter, column_index_from_string
+import datetime
 
 
-# Flask 서버 생성
-server = Flask(__name__)
-
-
-# 앱 초기화
-app = Dash(__name__, suppress_callback_exceptions=True, server=server)
-app.title = 'TDF 메인'  # 브라우저 탭 제목 설정
+#[Dash 그래프 요소]
+# 그래프 유형: Line (선), Bar (막대), Scatter (산점도), Pie (원형), Heatmap (히트맵), Boxplot (상자그림), Histogram (히스토그램), 3D 그래프 등 다양한 그래프 유형을 제공합니다.
+# 축 설정: X축과 Y축의 레이블, 범위, 타입 (선형, 로그 등), 틱 마크 설정 등.
+# 레이아웃 설정: 그래프의 제목, 글꼴 스타일, 그래프의 크기, 배경 색상, 레이아웃 마진 설정 등.
+# 마커와 라인 스타일: 산점도의 점 크기와 색상, 선 그래프의 선 굵기와 스타일 등.
+# 범례 (Legend): 범례의 위치와 스타일 설정.
+# 호버 텍스트: 데이터 포인트에 마우스를 가져갔을 때 표시되는 정보.
+# 애니메이션: 데이터 변화에 따른 그래프의 동적 변화를 표현.
+# 콜백 및 이벤트 처리: 사용자 상호작용에 따른 그래프의 동적 업데이트.
+# 서브플롯 및 다중 축: 하나의 그래프 안에 여러 개의 서브플롯 또는 다중 축을 구현.
+# 툴팁: 사용자가 그래프의 특정 부분에 마우스를 올렸을 때 추가 정보를 제공.
+# 배경 색상: 그래프 전체 배경의 색상을 설정할 수 있습니다. 이는 그래프 데이터를 강조하거나 특정 테마에 맞게 그래프를 조정하는 데 유용합니다.
+# 서브플롯 배경: 다중 그래프 또는 서브플롯의 배경 색상을 별도로 설정할 수 있습니다. 각 서브플롯이 서로 구분되도록 시각적 구분을 제공합니다.
+# 플롯 영역 배경: X축과 Y축 사이의 주요 그래프 영역의 배경을 설정할 수 있습니다. 이 영역은 데이터가 표시되는 주요 부분입니다.
+# 그리드 라인: 그래프의 배경에 그리드 라인을 추가하여 데이터 포인트의 위치를 더 쉽게 식별할 수 있습니다. 그리드 라인의 색상, 스타일, 두께를 조정할 수 있습니다.
+# 그림자 효과: 그래프에 그림자 효과를 추가하여 시각적 깊이와 입체감을 줄 수 있습니다.
+# 테두리: 그래프의 외곽에 테두리를 추가하여 그래프를 나머지 페이지 또는 대시보드 요소와 구분할 수 있습니다.
+# 불투명도: 그래프의 배경 불투명도를 조정하여 배경 이미지나 색상을 더 강조하거나 더 희미하게 할 수 있습니다.
+# 배경 이미지: 배경으로 이미지를 설정하여 그래프에 추가적인 맥락이나 시각적 효과를 제공할 수 있습니다.
+# 마진 및 패딩: 그래프 주변의 여백을 조정하여 배경 요소와의 관계를 설정할 수 있습니다.
 
 
 # 경고 메시지 무시
@@ -29,179 +41,752 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 # 모니터링 ---------> temp
-path_TDF = r'C:/Covenant/data/0.TDF_모니터링.xlsx'  # 이 경로를 정확히 지정해야 합니다.
-sheet_RANK = 'RANK'  # '요약.xlsx' 파일에 있는 시트 이름
 
+# 파일 경로 및 시트 이름 정의
+path_TDF = r'C:/Covenant/data/0.TDF_모니터링.xlsx'
 path_Temp_TDF = r'C:/Covenant/data/Temp_TDF.xlsx'
-sheet_temp = 'RANK'
+sheet_설정액 = '설정액'
+
+# 지정된 시트를 읽어와서 데이터프레임으로 저장
+df_설정액 = pd.read_excel(path_TDF, sheet_name=sheet_설정액)
+
+# 파일이 없는 경우 새 Workbook 생성
+if not os.path.exists(path_Temp_TDF):
+    wb = Workbook()
+    wb.save(path_Temp_TDF)
+    print(f"새 파일 '{path_Temp_TDF}' 생성됨.")
+
+# DataFrame을 엑셀 시트로 저장
+with pd.ExcelWriter(path_Temp_TDF, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+    df_설정액.to_excel(writer, sheet_name=sheet_설정액, index=False)
+
+print(f"'{sheet_설정액}' 시트를 '{sheet_설정액}' 시트로 저장했습니다.")
 
 
 
-# # 지정된 시트를 읽어와서 데이터프레임으로 저장
-# df_RANK = pd.read_excel(path_TDF, sheet_name=sheet_RANK)
 
-# # 파일이 없는 경우 새 Workbook 생성
-# if not os.path.exists(path_Temp_TDF):
-#     wb = Workbook()
-#     wb.save(path_Temp_TDF)
-#     print(f"새 파일 '{path_Temp_TDF}' 생성됨.")
+# 앱 초기화
+app = Dash(__name__)
 
-# # DataFrame을 엑셀 시트로 저장
-# with pd.ExcelWriter(path_Temp_TDF, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-#     df_RANK.to_excel(writer, sheet_name=sheet_temp, index=False)
+# 엑셀 파일 내 특정 셀 범위에서 데이터를 읽어오는 함수
+def read_data_from_excel(path_Temp_TDF, sheet_설정액, cell_range):
+    wb = openpyxl.load_workbook(path_Temp_TDF, data_only=True)
+    sheet = wb[sheet_설정액]
+    data = []
+    for row in sheet[cell_range]:
+        data.append([cell.value for cell in row])
+    df = pd.DataFrame(data[1:], columns=data[0])
+    return df
 
-# print(f"'{sheet_RANK}' 시트를 '{sheet_temp}' 시트로 저장했습니다.")
-
-
-
-# 공통 컬럼 스타일 설정
-column_styles = {
-    'percentage': {
-        'indexes': [2, 5, 8, 11, 14, 17, 20, 23], 
-        'style': {'type': 'numeric', 
-                  'format': Format(precision=1, scheme=Scheme.percentage), 
-                  'textAlign': 'center'
-                },
-                
-        },
-
-    'left': {
-        'indexes': [1, 4, 7, 10, 13, 16, 19, 22], 
-        'style': {'textAlign': 'left'},
-        'width': '3%',
-        },
-
-    'number': {
-        'indexes': [0, 3, 6, 9, 12, 15, 18, 21], 
-        'style': {'textAlign': 'center'}
-    },
-}
+    # df.columns = [str(col) for col in df.columns]
 
 
-# 테이블 스타일 및 컬럼 스타일 설정
-table_cell = {
-    'table1': {'range': 'C3:Z26', 
-               'styles': column_styles, 
-               'reverse': False},
-    'table2': {'range': 'C34:Z57', 
-               'styles': column_styles, 
-               'reverse': True},
-    'table3': {'range': 'C63:Z86', 
-               'styles': {
-                'percentage': {
-                    'indexes': [2, 5, 8, 11, 14, 17, 20, 23], 
-                    'style': {'type': 'numeric', 
-                            'format': Format(precision=1, scheme=Scheme.decimal), 
-                            'textAlign': 'center'}
-                },
-                'left': {
-                    'indexes': [1, 4, 7, 10, 13, 16, 19, 22], 
-                    'style': {'textAlign': 'left'},
-                    'width': '3%',
-                },
-                'number': {
-                    'indexes': [0, 3, 6, 9, 12, 15, 18, 21], 
-                    'style': {'textAlign': 'center'}
-                },
-                'reverse': False
-            }}
-}
+# 테이블의 데이터 불러오기
+df_table1 = read_data_from_excel(path_Temp_TDF, sheet_설정액, 'AO28:BC31')
+df_table2 = read_data_from_excel(path_Temp_TDF, sheet_설정액, 'S15:AL25')
+df_table3 = read_data_from_excel(path_Temp_TDF, sheet_설정액, 'AO33:BC63')
+df_table4 = read_data_from_excel(path_Temp_TDF, sheet_설정액, 'S3:AG13')
+df_table5 = read_data_from_excel(path_Temp_TDF, sheet_설정액, 'AJ3:AX13')
+df_table6 = read_data_from_excel(path_Temp_TDF, sheet_설정액, 'J3:Q13')
+df_table7 = read_data_from_excel(path_Temp_TDF, sheet_설정액, 'J15:Q25')
 
 
 
-# E2 셀에서 term 값 읽어오기
-term = load_workbook(path_Temp_TDF)[sheet_temp]['E2'].value
-
-# 테이블 타이틀 설정
-table_titles = {
-    'table1': f'수익률 {term}', 
-    'table2': f'변동성 {term}', 
-    'table3': f'위험대비수익률 {term}'
-}
-
-
-# 전체 테이블 및 헤더 스타일
-table_style = {
-    'margin': '0', 
-    'margin-top': '-1%', 
-    'margin-bottom': '1%', 
-    'width': '100%', 
-    'textAlign': 'center', 
-    'z-index': 3
-}
-
-table_header_style = {
-    'fontWeight': 'bold', 
-    'backgroundColor': '#3762AF', 
-    'textAlign': 'center', 
-    'color': 'white'
-}
-
-# 데이터프레임을 생성하는 함수
-def create_data_table(path, sheet_name, cell_range_key):
-    cell_range_str = table_cell[cell_range_key]['range']
-    start_cell, end_cell = cell_range_str.split(':')
-    start_col, start_row = start_cell[:1], int(start_cell[1:])
-    end_col, end_row = end_cell[:1], int(end_cell[1:])
+# 데이터 테이블을 생성하는 함수
+def create_data_table(path_Temp_TDF, sheet_설정액, cell_range, percent_columns, font_size=None, header_style=None):
+    df = read_data_from_excel(path_Temp_TDF, sheet_설정액, cell_range)
     
-    df = pd.read_excel(path, sheet_name=sheet_name, engine='openpyxl', usecols=f"{start_col}:{end_col}", skiprows=start_row - 1, nrows=end_row - start_row + 1, header=0)
-    df.columns = df.columns.astype(str)
+    # 데이터프레임 컬럼 이름 변환 함수 정의
+    def convert_column_names(columns):
+        converted_columns = []
+        for column in columns:
+            if isinstance(column, datetime.datetime):
+                converted_columns.append(column.strftime('%Y년 %m월'))
+            elif column == '':
+                converted_columns.append(' ')
+            else:
+                converted_columns.append(column)
+        return converted_columns
+    
+    # 데이터프레임 컬럼 이름 변환 적용
+    df.columns = convert_column_names(df.columns)
 
-    columns = []
-    style_cell_conditional = []
 
-    # 컬럼 설정
-    for idx, col in enumerate(df.columns):
-        column_info = {"name": col, "id": col}
-        
-        # "Unnamed"으로 시작하는 컬럼 이름은 빈 문자열로 대체
-        col_name = "" if col.startswith("Unnamed") else col
-        column_info = {"name": col_name, "id": col}
-        
-        # 타입 및 포맷 설정
-        if 'percentage' in table_cell[cell_range_key]['styles'] and idx in table_cell[cell_range_key]['styles']['percentage']['indexes']:
-            column_info.update({
-                "type": "numeric",
-                "format": table_cell[cell_range_key]['styles']['percentage']['style']['format']
-            })
+    # 열의 너비 계산
+    num_columns = len(df.columns)
+    column_width = "{}%".format(100 / num_columns)
+            
+      
+    # 첫 번째 열을 텍스트로 표시
+    columns = [{"name": str(i), "id": str(i), "type": "text" if i == df.columns[0] else "numeric"} for i in df.columns]
 
-        columns.append(column_info)
+    # 모든 열을 numeric으로 설정 
+    for column in columns[1:]:
+        column['type'] = 'numeric'
+        column['format'] = Format(precision=0, scheme=Scheme.fixed, group=",")  # 모든 숫자 열의 소수 자릿수를 0으로 설정
 
-    # 스타일 조건 설정
-    for style_name, style_info in table_cell[cell_range_key]['styles'].items():
-        if isinstance(style_info, dict):
-            for idx in style_info.get('indexes', []):
-                if idx < len(df.columns):
-                    col = df.columns[idx]
-                    style_cell_conditional.append({
-                        'if': {'column_id': col},
-                        'textAlign': style_info.get('style', {}).get('textAlign', 'center'),
-                        'format': style_info.get('style', {}).get('format', None)
-                    })
+    # 퍼센트 컬럼으로 지정한 열만 소수점 2자리까지 보이도록 설정
+    if percent_columns:
+        for idx in percent_columns:
+            adjusted_idx = idx - 1
+            if 0 <= adjusted_idx < len(columns):
+                columns[adjusted_idx]['format'] = Format(precision=1, scheme=Scheme.percentage)
 
+    cell_style = {
+        'width': column_width,
+        'minWidth': column_width,
+        'maxWidth': column_width,
+        'whiteSpace': 'normal',
+        'textAlign': 'center',
+        'verticalAlign': 'middle',
+        'fontSize': '12px',
+        # 'fontWeight': 'bold',
+        'overflow': 'hidden',
+        'textOverflow': 'ellipsis'
+    }
+    
+    # 헤더 스타일 변경
+    style_header = {
+        'color': 'White', 
+        'fontweight': 'Bold', 
+        'background-color': '#3762AF', #'darkblue'
+        # 'background-color': '#4BACC6', #연한 비취색
+    }
+
+    
     return dash_table.DataTable(
-        id='table',
-        columns=columns,
         data=df.to_dict('records'),
-        style_table=table_style,
-        style_header=table_header_style,
-        style_cell_conditional=style_cell_conditional[::-1] if table_cell[cell_range_key].get('reverse', False) else style_cell_conditional
+        columns=columns,
+        page_size=20,  #행 개수 넘어가면 페이지 넘어가
+        style_cell=cell_style,  # 테이블 셀 텍스트 정렬을 중앙으로 설정
+        style_header=style_header,
     )
 
 
-# 레이아웃 생성
+
+# 마지막 행이 없는 데이터 - 그래프용
+df_G1 = df_table1.iloc[:-1]
+df_G2 = df_table2.iloc[:-1]
+df_G3 = df_table3.iloc[:-1]
+df_G4 = df_table4.iloc[:-1]
+df_G5 = df_table5.iloc[:-1]
+df_G6 = df_table6.iloc[:-1]
+
+# 테이블 셀 범위 정의
+table_cell = {
+    'table1': 'AO28:BC31',
+    'table2': 'S15:AL25',
+    'table3': 'AO33:BC63',
+    'table4': 'S3:AG13',
+    'table5': 'AJ3:AX13',
+    'table6': 'J3:Q13',
+    'table7': 'J15:Q25',
+}
+
+percent_column = {
+    '%table1' : [],
+    '%table2' : [16,18,19,20],
+    '%table3' : [],
+    '%table4' : [],
+    '%table5' : [],
+    '%table6' : [],
+    '%table7' : [],
+}
+
+# 그리드 아이템 CSS <A구역 : B구역>
+grid_style = {
+    # 'display': 'inline-block',  # 인라인 블록 요소로 배치
+    'width': '95%',  # 화면 절반을 차지
+    'margin': '0 auto',
+    'verticalAlign': 'top',  # 상단 정렬
+    # 'padding' :200,
+    # 'paddingLeft': '100px', 
+    # 'border': '1px solid black',  # 바더 라인 추가
+}
+
+# 테이블 스타일
+table_style = {
+    'margin': '0 auto',
+    'margin-top': '2%',
+    'width': '90%',
+    'textAlign': 'center',
+    # 'fontsize' : '30px',
+    'z-index': 3,  # 이 요소가 다른 요소 위에 위치함
+    # 'padding' :300,
+    # 'leftpadding' :300,
+    # 'rightpadding' :300,
+}
+
+# # 그래프 형식 (Line, Bar, Dot, Pie) 목록
+# graph_types = ['Line', 'Bar', 'Dot', 'Pie','Heatmap','Histogram']
+
+# # 그래프 컨테이너 스타일
+# graph_container_style = {
+#     'position': 'relative',  # 상대적 위치 설정
+#     'margin': '0 auto',
+#     'width': '90%',  # 컨테이너 너비
+#     'z-index': 1,  # 이 요소가 다른 요소 위에 위치함
+#     # 'border': '1px solid black',  # 바더 라인 추가
+# }
+
+# # 그래프 스타일 설정
+# graph_style = {
+#     'margin': '0 auto',
+#     'margin-top': '0%',
+#     'width': '85%',
+#     'z-index': 1,  # 이 요소가 다른 요소 위에 위치함
+# }
+
+
+# # 드롭다운 컨테이너 스타일
+# dropdown_container_style = {
+#     'position': 'absolute',  # 절대적 위치 설정
+#     'width': '15%',  # 각 드롭다운의 너비
+#     'right': '0%',  # 오른쪽에서 5% 떨어진 곳에 위치
+#     'top': '70%',  # 상단에서 50% 위치
+#     'transform': 'translateY(-50%)',  # Y축으로 -50% 이동하여 중앙 정렬
+#     'border': '0px solid black',  # 바더 라인 추가
+#     'z-index': 3,  # 이 요소가 다른 요소 위에 위치함
+# }
+
+# # 개별 드롭다운 스타일
+# dropdown_style = {
+#     'width': '100%',  # 각 드롭다운의 너비
+#     'marginRight': '1%',  # 드롭다운 사이의 간격
+#     'textAlign': 'center',
+# }
+
+
+# 앱 레이아웃 설정
 app.layout = html.Div([
+    # html.Div(children='한국투자 TDF ETF 포커스 모니터링', 
+    #          style={
+    #              'fontSize': 25, 
+    #              'textAlign': 'center', 
+    #              'position': 'sticky', 
+    #              'top': '0', 
+    #              'zIndex': '100',
+    #              'background-color': 'white'
+    #          }),
+    
+    # 테이블 1 
     html.Div([
-        html.H3(table_titles[key]),
-        create_data_table(
-            path=path_Temp_TDF,
-            sheet_name=sheet_temp,
-            cell_range_key=key
-        )
-    ], className='table') for key in table_cell.keys()
+        # 테이블 컨테이너
+        html.Div([
+            html.H3('TDF 설정액 증감(1)'),
+            create_data_table(
+                path_Temp_TDF, 
+                sheet_설정액, 
+                table_cell['table1'],
+                percent_column['%table1'], 
+                15, 
+                {'backgroundColor': 'blue', 'textAlign': 'center'}
+            )
+        ], className='table', style=table_style),
+
+        # # 그래프 컨테이너
+        # html.Div([
+        #     dcc.Graph(id='line-graph-table1', style=graph_style),
+
+        #     # 드롭다운 컨테이너
+        #     html.Div([
+        #         dcc.Dropdown(
+        #             id='yaxis-column-table1',
+        #             options=[{'label': i, 'value': i} for i in df_table1.columns[1:]],
+        #             value=df_table1.columns[5],
+        #             style=dropdown_style
+        #         ),
+        #         dcc.Dropdown(
+        #             id='graph-type-table1',
+        #             options=[{'label': i, 'value': i} for i in graph_types],
+        #             value='Dot',
+        #             style=dropdown_style
+        #         )
+        #     ], className='dropdown', style=dropdown_container_style),
+        # ], className='graph', style=graph_container_style),
+    ], className='grid', style=grid_style),
+
+
+    # 테이블 2
+    html.Div([
+        # 테이블 컨테이너
+        html.Div([
+            html.H3('TDF 설정액 증감(시장전체)'),
+            create_data_table(
+                path_Temp_TDF, 
+                sheet_설정액, 
+                table_cell['table2'],
+                percent_column['%table2'], 
+                15, 
+                {'backgroundColor': 'blue', 'textAlign': 'center'}
+            )
+        ], className='table', style=table_style),
+
+        # # 그래프 컨테이너
+        # html.Div([
+        #     dcc.Graph(id='line-graph-table2', style=graph_style),
+
+        #     # 드롭다운 컨테이너
+        #     html.Div([
+        #         dcc.Dropdown(
+        #             id='yaxis-column-table2',
+        #             options=[{'label': i, 'value': i} for i in df_table2.columns[1:]],
+        #             value=df_table2.columns[5],
+        #             style=dropdown_style
+        #         ),
+        #         dcc.Dropdown(
+        #             id='graph-type-table2',
+        #             options=[{'label': i, 'value': i} for i in graph_types],
+        #             value='Dot',
+        #             style=dropdown_style
+        #         )
+        #     ], className='dropdown', style=dropdown_container_style),
+        # ], className='graph', style=graph_container_style),
+    ], className='grid', style=grid_style),
+
+
+    # 테이블 3
+    html.Div([
+        # 테이블 컨테이너
+        html.Div([
+            html.H3('TDF 설정액 증감(운용사별)'),
+            create_data_table(
+                path_Temp_TDF, 
+                sheet_설정액, 
+                table_cell['table3'],
+                percent_column['%table3'], 
+                15, 
+                {'backgroundColor': 'blue', 'textAlign': 'center'}
+            )
+        ], className='table', style=table_style),
+
+        # # 그래프 컨테이너
+        # html.Div([
+        #     dcc.Graph(id='line-graph-table3', style=graph_style),
+
+        #     # 드롭다운 컨테이너
+        #     html.Div([
+        #         dcc.Dropdown(
+        #             id='yaxis-column-table3',
+        #             options=[{'label': i, 'value': i} for i in df_table3.columns[1:]],
+        #             value=df_table3.columns[1],
+        #             style=dropdown_style
+        #         ),
+        #         dcc.Dropdown(
+        #             id='graph-type-table3',
+        #             options=[{'label': i, 'value': i} for i in graph_types],
+        #             value='Pie',
+        #             style=dropdown_style
+        #         )
+        #     ], className='dropdown', style=dropdown_container_style),
+        # ], className='graph', style=graph_container_style),
+    ], className='grid', style=grid_style),
+
+
+
+    # 테이블 4 
+    html.Div([
+        # 테이블 컨테이너
+        html.Div([
+            html.H3('설정액(포커스)'),
+            create_data_table(
+                path_Temp_TDF, 
+                sheet_설정액, 
+                table_cell['table4'],
+                percent_column['%table4'], 
+                15, 
+                {'backgroundColor': 'blue', 'textAlign': 'center'}
+            )
+        ], className='table', style=table_style),
+
+        # # 그래프 컨테이너
+        # html.Div([
+        #     dcc.Graph(id='line-graph-table4', style=graph_style),
+
+        #     # 드롭다운 컨테이너
+        #     html.Div([
+        #         dcc.Dropdown(
+        #             id='yaxis-column-table4',
+        #             options=[{'label': i, 'value': i} for i in df_table4.columns[1:]],
+        #             value=df_table4.columns[1],
+        #             style=dropdown_style
+        #         ),
+        #         dcc.Dropdown(
+        #             id='graph-type-table4',
+        #             options=[{'label': i, 'value': i} for i in graph_types],
+        #             value='Pie',
+        #             style=dropdown_style
+        #         )
+        #     ], className='dropdown', style=dropdown_container_style),
+        # ], className='graph', style=graph_container_style),
+    ], className='grid', style=grid_style),
+
+
+    # 테이블 5
+    html.Div([
+        # 테이블 컨테이너
+        html.Div([
+            html.H3('설정액(TRP)'),
+            create_data_table(
+                path_Temp_TDF, 
+                sheet_설정액, 
+                table_cell['table5'],
+                percent_column['%table5'], 
+                15, 
+            )
+        ], className='table', style=table_style),
+
+        # # 그래프 컨테이너
+        # html.Div([
+        #     dcc.Graph(id='line-graph-table5', style=graph_style),
+
+        #     # 드롭다운 컨테이너
+        #     html.Div([
+        #         dcc.Dropdown(
+        #             id='yaxis-column-table5',
+        #             options=[{'label': i, 'value': i} for i in df_table5.columns[1:]],
+        #             value=df_table5.columns[1],
+        #             style=dropdown_style
+        #         ),
+        #         dcc.Dropdown(
+        #             id='graph-type-table5',
+        #             options=[{'label': i, 'value': i} for i in graph_types],
+        #             value='Pie',
+        #             style=dropdown_style
+        #         )
+        #     ], className='dropdown', style=dropdown_container_style),
+        # ], className='graph', style=graph_container_style),
+    ], className='grid', style=grid_style),
+
+
+    # 테이블 6
+    html.Div([
+        # 테이블 컨테이너
+        html.Div([
+            html.H3('설정액(포커스)'),
+            create_data_table(
+                path_Temp_TDF, 
+                sheet_설정액, 
+                table_cell['table6'],
+                percent_column['%table6'], 
+                15, 
+                {'backgroundColor': 'blue', 'textAlign': 'center'}
+            )
+        ], className='table', style=table_style),
+
+        # # 그래프 컨테이너
+        # html.Div([
+        #     dcc.Graph(id='line-graph-table6', style=graph_style),
+
+        #     # 드롭다운 컨테이너
+        #     html.Div([
+        #         dcc.Dropdown(
+        #             id='yaxis-column-table6',
+        #             options=[{'label': i, 'value': i} for i in df_table6.columns[1:]],
+        #             value=df_table6.columns[6],
+        #             style=dropdown_style
+        #         ),
+        #         dcc.Dropdown(
+        #             id='graph-type-table6',
+        #             options=[{'label': i, 'value': i} for i in graph_types],
+        #             value='Bar',
+        #             style=dropdown_style
+        #         )
+        #     ], className='dropdown', style=dropdown_container_style),
+        # ], className='graph', style=graph_container_style),
+    ], className='grid', style=grid_style),
+
+
+
+# 테이블 7
+    html.Div([
+        # 테이블 컨테이너
+        html.Div([
+            html.H3('설정액(TRP)'),
+            create_data_table(
+                path_Temp_TDF, 
+                sheet_설정액, 
+                table_cell['table7'],
+                percent_column['%table7'], 
+                15, 
+                {'backgroundColor': 'blue', 'textAlign': 'center'}
+            )
+        ], className='table', style=table_style),
+
+        # # 그래프 컨테이너
+        # html.Div([
+        #     dcc.Graph(id='line-graph-table7', style=graph_style),
+
+        #     # 드롭다운 컨테이너
+        #     html.Div([
+        #         dcc.Dropdown(
+        #             id='yaxis-column-table7',
+        #             options=[{'label': i, 'value': i} for i in df_table7.columns[1:]],
+        #             value=df_table7.columns[6],
+        #             style=dropdown_style
+        #         ),
+        #         dcc.Dropdown(
+        #             id='graph-type-table6',
+        #             options=[{'label': i, 'value': i} for i in graph_types],
+        #             value='Bar',
+        #             style=dropdown_style
+        #         )
+        #     ], className='dropdown', style=dropdown_container_style),
+        # ], className='graph', style=graph_container_style),
+    ], className='grid', style=grid_style),
+
 ])
 
 
+# # 콜백 함수 정의
+# @app.callback(
+#     Output('line-graph-table1', 'figure'),
+#     [Input('yaxis-column-table1', 'value'),
+#      Input('graph-type-table1', 'value')]
+# )
+# def update_graph_table1(yaxis_column_name, graph_type):
+#     if graph_type == 'Dot':
+#         # Dot 그래프 생성
+#         fig = go.Figure(data=go.Scatter(
+#             x=df_table1[df_table1.columns[0]].astype(str),
+#             y=df_table1[yaxis_column_name],
+#             mode='markers',  # 마커 모드 사용
+#             marker=dict(
+#                 size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
+#                 opacity=0.8,
+#                 line=dict(width=2, color='DarkSlateGrey')
+#             )
+#         ))
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#         fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
+        
+#     elif graph_type == 'Bar':
+#         fig = px.bar(df_table1, x=df_table1.columns[0], y=yaxis_column_name)
+#     elif graph_type == 'Pie':
+#         fig = px.pie(df_table1, names=df_table1.columns[0], values=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#     else:
+#         fig = px.line(df_table1, x=df_table1.columns[0], y=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+
+#             # 그래프의 배경을 투명하게 설정
+#     fig.update_layout(
+#         paper_bgcolor='rgba(0,0,0,0)',
+#         # plot_bgcolor='rgba(0,0,0,0)',
+#     )
+#     return fig
+
+
+
+
+
+# @app.callback(
+#     Output('line-graph-table2', 'figure'),
+#     [Input('yaxis-column-table2', 'value'),
+#      Input('graph-type-table2', 'value')]
+# )
+
+# def update_graph_table2(yaxis_column_name, graph_type):
+#     if graph_type == 'Dot':
+#         # Dot 그래프 생성
+#         fig = go.Figure(data=go.Scatter(
+#             x=df_table2[df_table2.columns[0]].astype(str),
+#             y=df_table2[yaxis_column_name],
+#             mode='markers',  # 마커 모드 사용
+#             marker=dict(
+#                 size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
+#                 opacity=0.8,
+#                 line=dict(width=2, color='DarkSlateGrey')
+#             )
+#         ))
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#         fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
+        
+#     elif graph_type == 'Bar':
+#         fig = px.bar(df_table2, x=df_table2.columns[0], y=yaxis_column_name)
+#     elif graph_type == 'Pie':
+#         fig = px.pie(df_table2, names=df_table2.columns[0], values=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#     else:
+#         fig = px.line(df_table2, x=df_table2.columns[0], y=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+
+#     # 그래프의 배경을 투명하게 설정
+#     fig.update_layout(
+#         paper_bgcolor='rgba(0,0,0,0)',
+#         # plot_bgcolor='rgba(0,0,0,0)'
+#     )
+
+#     return fig
+
+
+
+# @app.callback(
+#     Output('line-graph-table3', 'figure'),
+#     [Input('yaxis-column-table3', 'value'),
+#      Input('graph-type-table3', 'value')]
+# )
+
+# def update_graph_table3(yaxis_column_name, graph_type):
+#     if graph_type == 'Dot':
+#         # Dot 그래프 생성
+#         fig = go.Figure(data=go.Scatter(
+#             x=df_G3[df_G3.columns[0]].astype(str),
+#             y=df_G3[yaxis_column_name],
+#             mode='markers',  # 마커 모드 사용
+#             marker=dict(
+#                 size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
+#                 opacity=0.8,
+#                 line=dict(width=2, color='DarkSlateGrey')
+#             )
+#         ))
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#         fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
+        
+#     elif graph_type == 'Bar':
+#         fig = px.bar(df_G3, x=df_G3.columns[0], y=yaxis_column_name)
+#     elif graph_type == 'Pie':
+#         fig = px.pie(df_G3, names=df_G3.columns[0], values=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#     else:
+#         fig = px.line(df_G3, x=df_G3.columns[0], y=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+
+#     # 그래프의 배경을 투명하게 설정
+#     fig.update_layout(
+#         paper_bgcolor='rgba(0,0,0,0)',
+#         # plot_bgcolor='rgba(0,0,0,0)',
+#     )
+
+#     return fig
+
+
+# @app.callback(
+#     Output('line-graph-table4', 'figure'),
+#     [Input('yaxis-column-table4', 'value'),
+#      Input('graph-type-table4', 'value')]
+# )
+
+# def update_graph_table4(yaxis_column_name, graph_type):
+#     if graph_type == 'Dot':
+#         # Dot 그래프 생성
+#         fig = go.Figure(data=go.Scatter(
+#             x=df_G4[df_G4.columns[0]].astype(str),
+#             y=df_G4[yaxis_column_name],
+#             mode='markers',  # 마커 모드 사용
+#             marker=dict(
+#                 size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
+#                 opacity=0.8,
+#                 line=dict(width=2, color='DarkSlateGrey')
+#             )
+#         ))
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#         fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
+        
+#     elif graph_type == 'Bar':
+#         fig = px.bar(df_G4, x=df_G4.columns[0], y=yaxis_column_name)
+#     elif graph_type == 'Pie':
+#         fig = px.pie(df_G4, names=df_G4.columns[0], values=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#     else:
+#         fig = px.line(df_G4, x=df_G4.columns[0], y=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+
+#     # 그래프의 배경을 투명하게 설정
+#     fig.update_layout(
+#         paper_bgcolor='rgba(0,0,0,0)',
+#         # plot_bgcolor='rgba(0,0,0,0)',
+#     )
+
+#     return fig
+
+
+# @app.callback(
+#     Output('line-graph-table5', 'figure'),
+#     [Input('yaxis-column-table5', 'value'),
+#      Input('graph-type-table5', 'value')]
+# )
+
+# def update_graph_table5(yaxis_column_name, graph_type):
+#     if graph_type == 'Dot':
+#         # Dot 그래프 생성
+#         fig = go.Figure(data=go.Scatter(
+#             x=df_table5[df_table5.columns[0]].astype(str),
+#             y=df_table5[yaxis_column_name],
+#             mode='markers',  # 마커 모드 사용
+#             marker=dict(
+#                 size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
+#                 opacity=0.8,
+#                 line=dict(width=2, color='DarkSlateGrey')
+#             )
+#         ))
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#         fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
+        
+#     elif graph_type == 'Bar':
+#         fig = px.bar(df_table5, x=df_table5.columns[0], y=yaxis_column_name)
+#     elif graph_type == 'Pie':
+#         fig = px.pie(df_table5, names=df_table5.columns[0], values=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#     else:
+#         fig = px.line(df_table5, x=df_table5.columns[0], y=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+
+#     # 그래프의 배경을 투명하게 설정
+#     fig.update_layout(
+#         paper_bgcolor='rgba(0,0,0,0)',
+#         # plot_bgcolor='rgba(0,0,0,0)',
+#         yaxis=dict(domain=[0, 0.5]), #하단반쪽   cf)상단반쪽 [0.5,1]
+
+#     )
+
+#     return fig
+
+
+
+# @app.callback(
+#     Output('line-graph-table6', 'figure'),
+#     [Input('yaxis-column-table6', 'value'),
+#      Input('graph-type-table6', 'value')]
+# )
+# def update_graph_table6(yaxis_column_name, graph_type):
+#     if graph_type == 'Dot':
+#         # Dot 그래프 생성
+#         fig = go.Figure(data=go.Scatter(
+#             x=df_table6[df_table6.columns[0]].astype(str),
+#             y=df_table6[yaxis_column_name],
+#             mode='markers',  # 마커 모드 사용
+#             marker=dict(
+#                 size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
+#                 opacity=0.8,
+#                 line=dict(width=2, color='DarkSlateGrey')
+#             )
+#         ))
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#         fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
+        
+#     elif graph_type == 'Bar':
+#         fig = px.bar(df_table6, x=df_table6.columns[0], y=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#     elif graph_type == 'Pie':
+#         fig = px.pie(df_table6, names=df_table6.columns[0], values=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+#     else:
+#         fig = px.line(df_table6, x=df_table6.columns[0], y=yaxis_column_name)
+#         fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+
+#     # 그래프의 배경을 투명하게 설정
+#     fig.update_layout(
+#         paper_bgcolor='rgba(0,0,0,0)',
+#         # plot_bgcolor='rgba(0,0,0,0)',
+#         height=700,
+#     )
+
+#     return fig
+
 # 앱 실행
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0')
+    app.run_server(debug=True,host='0.0.0.0') 
+
+
+    #http://192.168.194.140:8050

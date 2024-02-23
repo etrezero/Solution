@@ -34,29 +34,31 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 
-# 파일 경로와 시트 이름 정의
+# From 파일 경로와 시트 이름 정의
 path_TDF = 'C:/Covenant/data/0.TDF_모니터링.xlsx'
 sheet_요약 = '요약'
 
+# To
+path_Temp_TDF = 'C:/Covenant/data/Temp_TDF.xlsx'
+sheet_temp = 'temp'
 
-# # path_TDF의 sheet_요약 시트를 읽어와서 데이터프레임으로 저장
-# df = pd.read_excel(path_TDF, sheet_temp=sheet_요약)
 
-# # 새로운 ExcelWriter 객체 생성하여 기존 파일 열기, 기존 시트를 새 데이터로 대체
-# with pd.ExcelWriter(path_Temp_TDF, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-#     # DataFrame을 새로운 시트로 저장
-#     df.to_excel(writer, sheet_temp=sheet_temp, index=False)
+# path_TDF의 sheet_요약 시트를 읽어와서 데이터프레임으로 저장
+df = pd.read_excel(path_TDF, sheet_name=sheet_요약)
 
-# # print(f"{sheet_요약} 시트를 {sheet_temp} 시트로 저장했습니다.")
+# 요약을 Temp_TDF에 sheet_temp로 저장
+with pd.ExcelWriter(path_Temp_TDF, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+    # DataFrame을 새로운 시트로 저장
+    df.to_excel(writer, sheet_name=sheet_temp, index=False)
+
+# print(f"{sheet_요약} 시트를 {sheet_temp} 시트로 저장했습니다.")
 
 
 
 # 앱 초기화
 app = Dash(__name__)
 
-path_TDF = 'C:/Covenant/data/0.TDF_모니터링.xlsx'
-path_Temp_TDF = 'C:/Covenant/data/Temp_TDF.xlsx'
-sheet_temp = 'temp'
+
 
 # 엑셀 파일 내 특정 셀 범위에서 데이터를 읽어오는 함수
 def read_data_from_excel(path_Temp_TDF, sheet_temp, cell_range):
