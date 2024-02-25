@@ -7,6 +7,11 @@ import numpy as np
 from scipy.stats import skew
 import matplotlib.pyplot as plt
 
+import dash
+from dash import dcc, html
+import plotly.graph_objs as go
+import pandas as pd
+
 # 엑셀 파일 경로
 save_path = 'C:/Users/서재영/Documents/Python Scripts/data/TDF_holdings.xlsx'
 
@@ -90,66 +95,85 @@ with pd.ExcelWriter(save_path, engine='openpyxl', mode='a') as writer:
             writer.book.remove(writer.book[sheet_name])  # 이미 있는 시트 제거
         data.to_excel(writer, sheet_name=sheet_name, index=True)
 
-# 각 시트의 데이터를 불러옵니다.
-rolling_return_df = pd.read_excel(save_path, sheet_name='rolling_return', index_col=0)
-volatility_df = pd.read_excel(save_path, sheet_name='volatility', index_col=0)
-DD_df = pd.read_excel(save_path, sheet_name='DD', index_col=0)
-winning_mean_gap_df = pd.read_excel(save_path, sheet_name='winning_mean_gap', index_col=0)
-skewness_change_df = pd.read_excel(save_path, sheet_name='skewness_change', index_col=0)
-skewness_change_df = pd.read_excel(save_path, sheet_name='skewness_change', index_col=0)
 
 
-# 각 데이터프레임의 열 이름과 tail을 데이터프레임으로 만듭니다.
-rolling_return_tail = rolling_return_df.tail(500)
-volatility_tail = volatility_df.tail(500)
-DD_tail = DD_df.tail(500)
-cumulative_returns_tail = cumulative_returns.tail(500)
-skewness_change_tail = skewness_change_df.tail(500)
+# 예시 데이터 불러오기
+rolling_return_tail = pd.read_excel(save_path, sheet_name='rolling_return', index_col=0).tail(500)
+volatility_tail = pd.read_excel(save_path, sheet_name='volatility', index_col=0).tail(500)
+DD_tail = pd.read_excel(save_path, sheet_name='DD', index_col=0).tail(500)
+cumulative_returns_tail = pd.read_excel(save_path, sheet_name='cumulative_returns', index_col=0).tail(500)
+skewness_change_tail = pd.read_excel(save_path, sheet_name='skewness_change', index_col=0).tail(500)
+df_Sum_DD = DD_tail.sum(axis=1)
+cumulative_returns_ACWI_BND = cumulative_returns_tail[['ACWI', 'BND']]
 
-# 그래프들의 행과 열의 개수 설정
-num_rows = 3
-num_cols = 2
 
-# 그래프를 그립니다.
-fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 15))
 
-# 데이터프레임과 그래프 제목을 묶어서 순회합니다.
-for idx, (df, title) in enumerate([(rolling_return_tail, 'rolling_return_tail'),
-                                    (volatility_tail, 'volatility_tail'),
-                                    (DD_tail, 'DD_tail'),
-                                    (cumulative_returns_tail, 'cumulative_returns_tail'),
-                                    (skewness_change_tail, 'skewness_change_tail')]):
-    # 각 그래프의 행과 열 인덱스 계산
-    row_idx = idx // num_cols
-    col_idx = idx % num_cols
 
-    # 그래프를 그립니다.
-    df.plot(ax=axes[row_idx, col_idx], kind='line')  # 데이터프레임을 선 그래프로 플로팅합니다.
-    axes[row_idx, col_idx].set_title(f'{title} Data')  # 그래프의 제목을 설정합니다.
-    axes[row_idx, col_idx].set_xlabel('Date')  # x축 레이블을 설정합니다.
-    axes[row_idx, col_idx].set_ylabel('Values')  # y축 레이블을 설정합니다.
-    axes[row_idx, col_idx].tick_params(axis='x', rotation=45)  # x축 눈금 라벨을 45도로 회전합니다.
 
-# 그래프 간의 간격을 조정합니다.
-plt.tight_layout()
-plt.show()  # 그래프를 표시합니다.
 
-# DD 시트의 각 열의 합계를 일자별로 계산해서 df_Sum_DD로 정의하고 그래프로 추가해줍니다.
-df_Sum_DD = DD_df.sum(axis=1)
+# Plotly 그래프 생성 함수
+def create_plotly_graph(df, title):
+    data = []
+    for col in df.columns:
+        trace = go.Scatter(x=df.index, y=df[col], mode='lines', name=col)
+        data.append(trace)
+    layout = dict(title=title, xaxis=dict(title='Date'), yaxis=dict(title='Values'))
+    return {'data': data, 'layout': layout}
 
-# cumulative_returns 중 열 이름이 ACWI, BND인 열의 데이터를 선택하여 그래프에 추가합니다.
-cumulative_returns_ACWI_BND = cumulative_returns[['ACWI', 'BND']]
 
-# 그래프를 추가합니다.
-plt.figure(figsize=(10, 6))
-df_Sum_DD.plot(kind='line', label='Sum of DD')
-cumulative_returns_ACWI_BND.plot(ax=plt.gca(), kind='line', secondary_y=True)  # 보조 축에 추가합니다.
-plt.title('Sum of DD Data with ACWI and BND')
-plt.xlabel('Date')
-plt.ylabel('Sum of DD')
-plt.xticks(rotation=45)
-plt.legend()
-plt.tight_layout()
-plt.show()
 
-print("저장이 완료되었습니다.")
+
+# Dash 앱 설정
+app = dash.Dash(__name__)
+
+
+
+# 스타일 설정 딕셔너리
+graph_style = {
+    'width': '70%', 
+    'height': '600px', 
+    'margin': 'auto',
+    'display': 'flex',
+    'justify-content': 'center',  # 가로 방향 가운데 정렬
+    'text-align': 'center',
+    'align-items': 'center'  # 세로 방향 가운데 정렬
+}
+
+
+
+# 그래프 레이아웃 설정
+app.layout = html.Div([
+    html.H1("3M Return_based Analysis"),
+    
+    # 그래프 1: Rolling Return
+    dcc.Graph(id='rolling-return-graph', figure=create_plotly_graph(rolling_return_tail, 'Rolling Return'), style=graph_style),
+    
+    # 그래프 2: Volatility
+    dcc.Graph(id='volatility-graph', figure=create_plotly_graph(volatility_tail, 'Volatility'), style=graph_style),
+    
+    # 그래프 3: DD
+    dcc.Graph(id='dd-graph', figure=create_plotly_graph(DD_tail, 'Drawdown'), style=graph_style),
+    
+    # 그래프 4: Cumulative Returns
+    dcc.Graph(id='cumulative-returns-graph', figure=create_plotly_graph(cumulative_returns_tail, 'Cumulative Returns'), style=graph_style),
+    
+    # 그래프 5: Skewness Change
+    dcc.Graph(id='skewness-change-graph', figure=create_plotly_graph(skewness_change_tail, 'Skewness Change'), style=graph_style),
+    
+    # 그래프 6: Sum of DD
+    dcc.Graph(id='sum-of-dd-graph', figure=create_plotly_graph(pd.DataFrame(df_Sum_DD), 'Sum of Drawdown'), style=graph_style),
+    
+    # 그래프 7: Cumulative Returns (ACWI and BND)
+    dcc.Graph(id='cumulative-returns-acwi-bnd-graph', figure=create_plotly_graph(cumulative_returns_ACWI_BND, 'Cumulative Returns (ACWI and BND)'), style=graph_style),
+])
+
+
+
+# 앱 실행
+if __name__ == '__main__':
+    app.run_server(debug=True,host='0.0.0.0') 
+
+
+    #http://192.168.194.140:8050
+    
+    # 노트북 192.168.219.101:8050
