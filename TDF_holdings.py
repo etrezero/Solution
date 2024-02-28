@@ -13,7 +13,7 @@ import plotly.graph_objs as go
 import pandas as pd
 
 # 엑셀 파일 경로
-save_path = 'C:/Users/서재영/Documents/Python Scripts/data/TDF_holdings.xlsx'
+save_path = 'C:\Covenant\data\TDF_holdings.xlsx'
 
 # 오늘 날짜를 변수에 할당
 today = datetime.now()

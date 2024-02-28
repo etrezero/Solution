@@ -111,18 +111,46 @@ image_style = {
 
 
 
+# FRED 그래프 코드 리스트
+base_url = "https://fred.stlouisfed.org/graph/graph-landing.php?g="
+width_param = "&width=100%"
+codes = [ "1dSVc", "1dsRu", "1dVQ6","1dFFw", "1dsBt", "1dHWE","1dHW3", 
+         "1dYnv", "1dYo0", "1dYo9", "1dYos", "1dYpa", "1dYpq", "1dYpB", 
+         "1dYpL", "1dYpS", "1dYpX", "1dYqi", "1dYqn", "1dYqA", "1dYqL",
+         "1dYqR", "1dYqX", "1dYqZ", "1dYr4", "1dYrD", "1dNYU", "1dYsN", 
+         "1dYsT", "1dYsZ", "1dYt9", "1dYtl", "1dYts", "16n5n", "1dYz8", 
+         "1dYzF", "1dYBL", "1dYzi", "1dYAa", "1dYAg" , 
+         ]  # FRED 코드 리스트
+
+# FRED 그래프들을 Dash Iframe 요소로 변환
+embed_iframes = []
+for code in codes:
+    full_src = f"{base_url}{code}{width_param}"
+    iframe = html.Iframe(
+        src=full_src,
+        style={
+            'position': 'relative',
+            'width': '100%',
+            'height': '550px',
+            'border': '0'
+        }
+    )
+    embed_iframes.append(iframe)
+
+
+
 # 앱 레이아웃 정의---------------------------------------
 app.layout = html.Div([
     # 그리드 레이아웃
     html.Div(id='grid-0', style=grid0_style, children=[
         html.Div(style=grid_layout_style, children=[
-            html.Div(id='grid-00', style=grid00_style, children='TDF Rank'),
+            html.Div(id='grid-00', style=grid00_style, children='TDF 설정액'),
             html.Div(id='grid-1', style=grid1_style, children='ETF 포커스'),
             html.Div(id='grid-2', style=grid2_style, children='T.Rowe TDF'),
-            html.Div(id='grid-3', style=grid3_style, children='TDF 설정액'),
-            html.Div(id='grid-4', style=grid4_style, children='TDF 판매사'),
-            html.Div(id='grid-5', style=grid5_style, children='TDF Holdings'),
-            html.Div(id='grid-6', style=grid6_style, children='LTCMA'),
+            html.Div(id='grid-3', style=grid3_style, children='멀티스크린'),
+            html.Div(id='grid-4', style=grid4_style, children='FRED'),
+            html.Div(id='grid-5', style=grid5_style, children='S자산배분'),
+            html.Div(id='grid-6', style=grid6_style, children='DB자산배분'),
         ])
     ]),
     
@@ -169,8 +197,10 @@ def display_tab_content(
     # 각 탭의 레이아웃을 반환하는 함수
     def get_tab_layout(grid_id):
         if grid_id == 'grid-00':
-              return html.Div(RANK_app.layout)
-                            
+              return html.Div([
+                RANK_app.layout,
+                설정액_app.layout
+                ])
         
         elif grid_id == 'grid-1':
             return 포커스_app.layout
@@ -180,19 +210,70 @@ def display_tab_content(
         
         elif grid_id == 'grid-3':
             return html.Div(
-               설정액_app.layout,
+                style={
+                    'margin': '0',
+                    'padding': '0',
+                    'display': 'grid',
+                    'gridTemplateRows': 'repeat(2, 1fr)',
+                    'gridTemplateColumns': 'repeat(3, 1fr)',
+                    'gap': '10px',
+                    'height': '100vh',
+                },
+                children=[
+                    html.Div(
+                        className="grid-item",
+                        id=f"site{i}",
+                        children=[
+                            html.Iframe(
+                                src=iframe_src[i-1],
+                                style={'width': '100%', 'height': '100%', 'border': 'none'}
+                            )
+                        ]
+                    ) for i in range(1, 6)
+                ] + [
+                    html.Div(
+                        className="grid-item grid-info",
+                        children=[
+                            dcc.Dropdown(
+                                id='gridNumberInput',
+                                options=[{'label': i, 'value': i} for i in range(1, 6)],
+                                placeholder='Browse할 웹페이지를 선택하세요',
+                                style={'width': '70%', 'padding': '5px'}
+                            ),
+                            dcc.Input(
+                                type='text',
+                                id='urlInput',
+                                placeholder='URL 입력',
+                                style={'width': '45%', 'height': '4%', 'padding': '10px', 'margin' : '1%'}
+                            ),
+                            html.Button('Browse', id='browse-button', n_clicks=0),
+                        ]
+                    )
+                ]
             )
         
         elif grid_id == 'grid-4':
             return html.Div([
-                설정액_app.layout,
-                ])
+                html.H3('FRED Macro'),
+                html.Div(
+                    [html.Div(iframe) for iframe in embed_iframes],
+                    style={
+                        'display': 'grid',
+                        'gridTemplateColumns': 'repeat(2, 1fr)',
+                        'gridTemplateRows': 'repeat(20, 540px)',
+                        'gridColumnGap': '50px',
+                        'gridRowGap': '20px',
+                        'margin': '10px',
+                        'padding': '10px'
+                    }
+                )
+            ])
         
         elif grid_id == 'grid-5':
             return html.Div([
                 html.H3('S자산배분'),
                 html.Div(
-                    [html.Div(   ) ],
+                    [html.Div() ],
                     style={
                         'display': 'grid',
                         'gridTemplateColumns': 'repeat(2, 1fr)',

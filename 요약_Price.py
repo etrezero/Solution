@@ -32,11 +32,22 @@ def fetch_and_save_data(sheet_name, 종목코드_list):
     with pd.ExcelWriter(save_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         combined_df.to_excel(writer, sheet_name=sheet_name, index=True)
 
-    wb = load_workbook(save_path)/
+    wb = load_workbook(save_path)
     if sheet_name not in wb.sheetnames:
         wb.create_sheet(sheet_name)
 
     print(f'데이터가 {save_path}의 {sheet_name} 시트에 저장되었습니다.')
+    
+    print(combined_df.tail)
+    
+    # 데이터가 누락된 컬럼 수 계산 및 출력
+    # 전체 데이터 프레임에서 누락된 데이터의 총 개수를 계산
+    missing_data_columns = combined_df.tail(1).isnull().sum(axis=0)
+    num_missing_columns = missing_data_columns[missing_data_columns > 0].count()
+    print(f'마지막 행에서 데이터가 누락된 컬럼 수: {num_missing_columns}')
+
+    total_missing_data = combined_df.isnull().sum().sum()
+    print(f'전체 데이터에서 누락된 데이터의 총 개수: {total_missing_data}')
 
 # List1 데이터 가져오기
 df_list1 = pd.read_excel(save_path, sheet_name='List1', usecols=[0], names=['종목코드'])
