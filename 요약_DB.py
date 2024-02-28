@@ -4,6 +4,7 @@ import win32con
 import win32com.client
 import pygetwindow as PGW
 import os
+
 import subprocess
 from datetime import datetime
 import time
@@ -150,6 +151,29 @@ time.sleep(3)
 
 # -------------------------------------------
 
+
+def maximize_window_by_name(window_name):
+    # 모든 윈도우 핸들을 열거
+    def callback(hwnd, _):
+        if win32gui.IsWindowVisible(hwnd) and window_name in win32gui.GetWindowText(hwnd):
+            # 창이 보이고 이름이 일치하는 경우 창을 최대화
+            win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+    
+    win32gui.EnumWindows(callback, None)
+
+# 특정 프로그램 창 또는 작업 창의 이름을 지정합니다.
+window_name = "FundStar FOS"
+
+# 함수를 호출하여 창을 최대화합니다.
+maximize_window_by_name(window_name)
+
+
+
+
+
+
+
+
 # 화면을 엑셀로 저장
 
 PAUG.click(펀드종합좌표)
@@ -233,6 +257,7 @@ path설정해지 = os.path.join('C:\Covenant\data\To_요약', file_설정해지)
 
 # 열려 있던 GiredBox 창 찾아-활성화해-닫기
 def bring_excel_to_front(excel):
+
     try:
         excel_hwnd = win32gui.FindWindow(None, excel.Caption)
         win32gui.ShowWindow(excel_hwnd, win32con.SW_RESTORE)  # Restore if minimized
@@ -303,6 +328,8 @@ range_요약_자금총괄.Value = range_요약_자금총괄.Value
 
 print("요약_자금총괄 저장 완료")
 # -----------------<자금총괄 저장 완료>-----------
+
+
 
 
 
@@ -504,6 +531,29 @@ print("MOS 저장완료")
 
 
 
+# # 요약 제외 Excel 닫기
+
+# def close_all_except_요약_workbook(excel, workbook_name):
+#     try:
+#         # Excel 인스턴스가 이미 초기화되어 있다고 가정
+#         excel.Visible = True  # Excel 창을 보이게 함
+#         excel.DisplayAlerts = False  # 경고창 표시 안 함
+
+#         # 열려 있는 모든 워크북 순회
+#         for wb in list(excel.Workbooks):
+#             # 지정된 워크북 이름이 아닌 경우 닫기
+#             if wb.Name != workbook_name:
+#                 wb.Close(SaveChanges=False)  # 변경사항을 저장하지 않고 닫음
+
+#     except Exception as e:
+#         print(f"오류 발생: {e}")
+
+# # Excel Application 객체 가져오기
+# excel = win32com.client.GetActiveObject("Excel.Application")
+
+# # '요약' 워크북을 제외한 모든 워크북을 닫기
+# close_all_except_요약_workbook(excel, '요약.xlsx')
+
 
 
 
@@ -537,6 +587,26 @@ PAUG.hotkey('ctrl','v')
 time.sleep(0.5)
 PAUG.press("enter")
 time.sleep(8)
+
+
+
+
+# def maximize_window_by_name(window_name):
+#     # 모든 윈도우 핸들을 열거
+#     def callback(hwnd, _):
+#         if win32gui.IsWindowVisible(hwnd) and window_name in win32gui.GetWindowText(hwnd):
+#             # 창이 보이고 이름이 일치하는 경우 창을 최대화
+#             win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+    
+#     win32gui.EnumWindows(callback, None)
+
+# # 특정 프로그램 창 또는 작업 창의 이름을 지정합니다.
+# window_name = "한국투자신탁운용"
+
+# # 함수를 호출하여 창을 최대화합니다.
+# maximize_window_by_name(window_name)
+
+
 
 
 PAUG.click(BOS화면번호좌표)
@@ -667,34 +737,13 @@ PAUG.press('Enter')
 
 
 
-# 요약 핸들만 빼고 엑셀 모두 닫기--------------------------------
-def close_windows_except_handle_and_excel(hwnd_exclude):
-    def callback(hwnd, hwnds):
-        if hwnd != hwnd_exclude and win32gui.IsWindowVisible(hwnd):
-            window_text = win32gui.GetWindowText(hwnd)
-            if "Excel" in window_text:
-                hwnds.append(hwnd)
-        return True
-
-    windows_to_close = []
-    win32gui.EnumWindows(callback, windows_to_close)
-
-    # 창 닫기
-    for hwnd in windows_to_close:
-        win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
-
-# 핸들 138256을 제외하고 이름에 "Excel"이 포함된 창들을 닫기
-exclude_handle = 138256 #요약 핸들
-close_windows_except_handle_and_excel(exclude_handle)
-#------------------------------------------------------------
 
 
 
 
 
 
-
-# BOS 3426 펀드판매사 정보
+# #BOS 3426 펀드판매사 정보
 # # ---<BOS>--------------------------------
 BOS화면번호좌표 = (1000, 41)
 BOS돋보기좌표_3426 = (150, 203)
@@ -791,7 +840,7 @@ bring_excel_to_front()
 
 time.sleep(0.5)
 PAUG.hotkey('ctrl','a')
-time.sleep(0.5)
+time.sleep(1)
 PAUG.hotkey('ctrl','c')
 time.sleep(0.5)
 
@@ -800,22 +849,19 @@ def bring_excel_sheet_to_front(excel, workbook_name, sheet_name):
     try:
         # Excel 초기화
         excel = win32com.client.Dispatch("Excel.Application")
-        excel.Visible = True  # Excel 창을 보이게 함
 
         # 현재 활성화된 워크북 가져오기
         workbook = excel.Workbooks(workbook_name)
+        excel_hwnd = win32gui.FindWindow(None, excel.Caption)
+        win32gui.ShowWindow(excel_hwnd, win32con.SW_RESTORE)  # 최소화되어 있다면 복원
+        win32gui.SetForegroundWindow(excel_hwnd)
 
-        # 워크북이 존재하고, 지정된 시트 이름이 있는 경우
-        if workbook is not None and sheet_name in [sheet.Name for sheet in workbook.Sheets]:
-            excel_hwnd = win32gui.FindWindow(None, excel.Caption)
-            win32gui.ShowWindow(excel_hwnd, win32con.SW_RESTORE)  # 최소화되어 있다면 복원
-            win32gui.SetForegroundWindow(excel_hwnd)
-
-            # 시트를 찾아서 최상위로 가져오기
-            for sheet in workbook.Sheets:
-                if sheet.Name == sheet_name:
-                    sheet.Activate()
-                    break
+    
+        # 시트를 찾아서 최상위로 가져오기
+        for sheet in workbook.Sheets:
+            if sheet.Name == sheet_name:
+                sheet.Activate()
+                break
 
     except Exception as e:
         print(f"{sheet_name} 시트를 최상위로 가져오는 동안 오류 발생:", e)
@@ -834,6 +880,9 @@ time.sleep(1)
 PAUG.hotkey('ctrl','v')
 time.sleep(1)
 
-PAUG.press('Enter')  #형식이 달라도 저장할경우
-PAUG.hotkey('ctrl','s')     
+PAUG.press('y')   #열이 달라도 붙여넣을거냐
 
+
+excel = win32com.client.Dispatch("Excel.Application")
+wb = excel.Workbooks
+wb.Close(SaveChanges=False)  # 변경사항을 저장하지 않고 닫음

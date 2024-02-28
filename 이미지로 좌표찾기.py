@@ -25,7 +25,6 @@ print(f"현재 마우스 좌표: ({mouse_x}, {mouse_y})")
 
 
 
-
 # screen_width = win32gui.GetWindowRect(win32gui.GetDesktopWindow())[2]
 # screen_height = win32gui.GetWindowRect(win32gui.GetDesktopWindow())[3]
 # center_x = screen_width / 2
