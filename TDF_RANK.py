@@ -42,7 +42,7 @@ app = Dash(__name__)
 
 
 # 데이터 테이블을 생성하는 함수
-def create_data_table(path, sheet_name, cell_range):
+def create_data_table(path, sheet_name, cell_range, table_type=None):  # table_type 추가
     wb = openpyxl.load_workbook(path_Temp_TDF, data_only=True)
     sheet = wb[sheet_RANK]
     data = []
@@ -52,16 +52,44 @@ def create_data_table(path, sheet_name, cell_range):
 
     # 백분율 소수점 첫째자리로 가운데 정렬하기 위한 Format 객체 생성
     percentage_format = Format(precision=1, scheme=Scheme.percentage)
+    number_format = Format(precision=1, scheme=Scheme.fixed)
 
-    columns = []
-    for i, col in enumerate(df.columns):
-        column_config = {'name': str(col), 'id': str(col), 'type': 'numeric'}
 
-        # 2, 5, 8, 11, 13, 17, 20, 23번째 열에 대해 백분율 소수점 첫째자리로 가운데 정렬 설정
-        if i+1 in [3, 6, 9, 12, 15, 18, 21, 24]:
-            column_config['format'] = percentage_format
+    # 테이블 유형에 따라 다른 데이터 정의 적용
+    if table_type == "A-Type":
+        # A-Type 테이블에 대한 설정
+        columns = []
+        for i, col in enumerate(df.columns):
+            column_config = {'name': str(col), 'id': str(col), 'type': 'numeric'}
 
-        columns.append(column_config)
+            # 2, 5, 8, 11, 13, 17, 20, 23번째 열에 대해 백분율 소수점 첫째자리로 가운데 정렬 설정
+            if i+1 in [3, 6, 9, 12, 15, 18, 21, 24]:
+                column_config['format'] = percentage_format
+
+            columns.append(column_config)
+
+    elif table_type == "B-Type":
+        # B-Type 테이블에 대한 설정
+        columns = []
+        for i, col in enumerate(df.columns):
+            column_config = {'name': str(col), 'id': str(col), 'type': 'numeric'}
+
+            # 2, 5, 8, 11, 13, 17, 20, 23번째 열에 대해 백분율 소수점 첫째자리로 가운데 정렬 설정
+            if i+1 in [3, 6, 9, 12, 15, 18, 21, 24]:
+                column_config['format'] = number_format
+
+            columns.append(column_config)
+    # else:
+    #     # 기본 설정
+    #     columns = []
+    #     for i, col in enumerate(df.columns):
+    #         column_config = {'name': str(col), 'id': str(col), 'type': 'numeric'}
+
+    #         # 2, 5, 8, 11, 13, 17, 20, 23번째 열에 대해 백분율 소수점 첫째자리로 가운데 정렬 설정
+    #         if i+1 in [3, 6, 9, 12, 15, 18, 21, 24]:
+    #             column_config['format'] = percentage_format
+
+            # columns.append(column_config)
 
     # 모든 열에 대해 스타일을 적용합니다.
     style_data_conditional = [
@@ -88,22 +116,18 @@ def create_data_table(path, sheet_name, cell_range):
         for col_name in df.columns
     ]
 
-
-
-
     # 테이블 스타일 설정
     style_table = {
-        'overflowX': 'auto', 
-        'marginTop': '-2%', 
+        'overflowX': 'auto',
+        'marginTop': '-2%',
         'marginBottom': '1%'  # 상하 마진 추가
     }
-
 
     # 데이터 테이블 생성
     return dash_table.DataTable(
         data=df.iloc[0:].to_dict('records'),
         columns=columns,
-        page_size=18,  #행 개수 넘어가면 페이지 넘어가
+        page_size=21,  # 행 개수 넘어가면 페이지 넘어가
         style_cell={'textAlign': 'center'},  # 여기서 가운데 정렬을 설정합니다.
         style_table=style_table,  # 테이블 스타일 설정을 적용합니다.
         style_header={
@@ -111,10 +135,9 @@ def create_data_table(path, sheet_name, cell_range):
             'fontWeight': 'bold',
             'background-color': '#3762AF',
             'display': 'none',
-        },  
+        },
         style_data_conditional=style_data_conditional  # 조건부 데이터 스타일을 적용합니다.
     )
-
 
 
 # df_Rank_History에서 최초 3행을 제거한 새로운 데이터프레임 생성
@@ -132,6 +155,8 @@ date_column = df_data.columns[0]  # 날짜 열은 실제 데이터에서 가져�
 for column, name in zip(df_data.columns[1:3], legend):  # 실제 데이터의 열과 범례 이름을 순회합니다.
     trace.append(go.Scatter(x=df_data[date_column], y=df_data[column], mode='lines', name=name))  # 그래프의 데이터를 생성합니다.
 
+print(df_data.head)
+
 
 # 앱 레이아웃 설정
 app.layout = html.Div([
@@ -145,7 +170,7 @@ app.layout = html.Div([
                 'layout': {
                     'title': 'YTD Rank History',
                     'xaxis': {'title': 'Date'},
-                    'yaxis': {'title': 'Value', 'autorange': 'reversed'},  # y축을 역축으로 설정
+                    'yaxis': {'title': 'Rank', 'autorange': 'reversed'},  # y축을 역축으로 설정
                     'width': '70vh',  # 가로 크기를 70%로 설정
                     'height': 'auto',  # 세로 크기를 자동으로 조정
                 }
@@ -159,28 +184,27 @@ app.layout = html.Div([
             }),  # 그래프를 가로로 가운데로 정렬
 
 
-    # 테이블 1
+    # 테이블 1 (A-Type)
     html.Div([
         html.H3('YTD RANK_수익률'),
-        create_data_table(path_TDF, sheet_RANK, 'C3:Z30')
+        create_data_table(path_TDF, sheet_RANK, 'C3:Z30', table_type="A-Type")  # A-Type 테이블로 설정
     ], className='table'),
 
-    # 테이블 2
+    # 테이블 2 (B-Type)
     html.Div([
         html.H3('YTD RANK_변동성'),
-        create_data_table(path_TDF, sheet_RANK, 'C34:Z58')
+        create_data_table(path_TDF, sheet_RANK, 'C34:Z58', table_type="A-Type")  # B-Type 테이블로 설정
     ], className='table'),
 
-    # 테이블 3
+    # 테이블 3 (기본 설정)
     html.Div([
         html.H3('YTD 위험대비 수익률'),
-        create_data_table(path_TDF, sheet_RANK, 'C63:Z87')
+        create_data_table(path_TDF, sheet_RANK, 'C63:Z87', table_type="B-Type")  # table_type 인자를 생략하여 기본 설정 사용
     ], className='table'),
-
-
 
 ])
 
 # 앱 실행
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
+

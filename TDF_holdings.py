@@ -1,4 +1,6 @@
 import FinanceDataReader as fdr
+from pykrx import stock
+
 from datetime import datetime, timedelta
 import pandas as pd
 from tqdm import tqdm
@@ -13,7 +15,7 @@ import plotly.graph_objs as go
 import pandas as pd
 
 # 엑셀 파일 경로
-save_path = 'C:\Covenant\data\TDF_holdings.xlsx'
+path_tdf_holdings = 'C:\Covenant\data\TDF_holdings.xlsx'
 
 # 오늘 날짜를 변수에 할당
 today = datetime.now()
@@ -21,10 +23,15 @@ today_str = today.strftime('%Y-%m-%d')
 print(today_str)
 
 # 시작 날짜 설정
-Start = today - timedelta(days=1000)
-End = today - timedelta(days=0)
+Start = today - timedelta(days=900)
+End = today - timedelta(days=1)
 
-def fetch_and_save_data(sheet_name, 종목코드_list):
+
+
+
+
+# List1 : 해외 ETF FDR
+def fetch_fdr(sheet_name, 종목코드_list):
     data_frames = []
     for 종목코드 in tqdm(종목코드_list, desc=f'Fetching data for {sheet_name}'):
         try:
@@ -39,14 +46,18 @@ def fetch_and_save_data(sheet_name, 종목코드_list):
     # 인덱스 날짜 형식을 YY-MM-DD로 포맷팅
     combined_df.index = combined_df.index.strftime('%y-%m-%d')
     
-    with pd.ExcelWriter(save_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+    with pd.ExcelWriter(path_tdf_holdings, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         combined_df.to_excel(writer, sheet_name=sheet_name, index=True)  # 인덱스 포함
-    print(f'데이터가 {save_path}의 {sheet_name} 시트에 저장되었습니다.')
+    print(f'데이터가 {path_tdf_holdings}의 {sheet_name} 시트에 저장되었습니다.')
 
 # List1 데이터 가져오기
-df_list1 = pd.read_excel(save_path, sheet_name='List1', usecols=[0], names=['종목코드'])
+df_list1 = pd.read_excel(path_tdf_holdings, sheet_name='List1', usecols=[0], names=['종목코드'])
 종목코드_list1 = df_list1['종목코드'].astype(str).tolist()
-fetch_and_save_data('Price1', 종목코드_list1)
+fetch_fdr('Price1', 종목코드_list1)
+
+
+
+
 
 # 표준화 합산 점수 계산 함수 정의
 def calculate_score(df):
@@ -76,7 +87,7 @@ def calculate_score(df):
     return rolling_return, volatility, DD, winning_mean_gap, skewness_change, cumulative_returns
 
 # Price1 시트 데이터 가져오기
-price1_df = pd.read_excel(save_path, sheet_name='Price1', index_col=0)
+price1_df = pd.read_excel(path_tdf_holdings, sheet_name='Price1', index_col=0)
 
 # 인덱스를 날짜 형식으로 변경하고 "YYYY-MM-DD"로 포맷팅
 price1_df.index = pd.to_datetime(price1_df.index, format='%y-%m-%d').strftime('%Y-%m-%d')
@@ -88,7 +99,7 @@ rolling_return, volatility, DD, winning_mean_gap, skewness_change, cumulative_re
 sheet_names = ['rolling_return', 'volatility', 'DD', 'winning_mean_gap', 'skewness_change', 'cumulative_returns']
 
 # 결과를 각 시트에 저장
-with pd.ExcelWriter(save_path, engine='openpyxl', mode='a') as writer:
+with pd.ExcelWriter(path_tdf_holdings, engine='openpyxl', mode='a') as writer:
     for i, data in enumerate([rolling_return, volatility, DD, winning_mean_gap, skewness_change, cumulative_returns]):
         sheet_name = sheet_names[i]
         if sheet_name in writer.book.sheetnames:
@@ -98,13 +109,58 @@ with pd.ExcelWriter(save_path, engine='openpyxl', mode='a') as writer:
 
 
 # 예시 데이터 불러오기
-rolling_return_tail = pd.read_excel(save_path, sheet_name='rolling_return', index_col=0).tail(500)
-volatility_tail = pd.read_excel(save_path, sheet_name='volatility', index_col=0).tail(500)
-DD_tail = pd.read_excel(save_path, sheet_name='DD', index_col=0).tail(500)
-cumulative_returns_tail = pd.read_excel(save_path, sheet_name='cumulative_returns', index_col=0).tail(500)
-skewness_change_tail = pd.read_excel(save_path, sheet_name='skewness_change', index_col=0).tail(500)
+rolling_return_tail = pd.read_excel(path_tdf_holdings, sheet_name='rolling_return', index_col=0).tail(500)
+volatility_tail = pd.read_excel(path_tdf_holdings, sheet_name='volatility', index_col=0).tail(500)
+DD_tail = pd.read_excel(path_tdf_holdings, sheet_name='DD', index_col=0).tail(500)
+cumulative_returns_tail = pd.read_excel(path_tdf_holdings, sheet_name='cumulative_returns', index_col=0).tail(500)
+skewness_change_tail = pd.read_excel(path_tdf_holdings, sheet_name='skewness_change', index_col=0).tail(500)
 df_Sum_DD = DD_tail.sum(axis=1)
+
+
 cumulative_returns_ACWI_BND = cumulative_returns_tail[['ACWI', 'BND']]
+cumulative_returns_ACWI_VUG = cumulative_returns_tail[['ACWI', 'VUG']]
+cumulative_returns_VUG_VEA_VWO = cumulative_returns_tail[['VUG', 'VEA', 'VWO']]
+cumulative_returns_VUG_VTV = cumulative_returns_tail[['VUG', 'VTV']]
+
+
+
+
+
+
+
+
+
+# List2 :  국내 ETF pykrx
+def fetch_pykrx(sheet_name, 종목코드_list):
+    data_frames = []
+    for 종목코드 in tqdm(종목코드_list, desc=f'Fetching data for {sheet_name}'):
+        try:
+            df = stock.get_market_ohlcv_by_date(Start.strftime('%Y%m%d'), End.strftime('%Y%m%d'), 종목코드)
+            df = df['종가'].rename(종목코드)
+            data_frames.append(df)
+        except Exception as e:
+            print(f"Error fetching data for 종목코드 '{종목코드}': {e}")
+    combined_df = pd.concat(data_frames, axis=1)
+    
+    # 인덱스를 날짜 형식으로 변경
+    combined_df.index = pd.to_datetime(combined_df.index)
+    # 인덱스 날짜 형식을 YY-MM-DD로 포맷팅
+    combined_df.index = combined_df.index.strftime('%y-%m-%d')
+    
+    with pd.ExcelWriter(path_tdf_holdings, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+        combined_df.to_excel(writer, sheet_name=sheet_name, index=True)  # 인덱스 포함
+    print(f'데이터가 {path_tdf_holdings}의 {sheet_name} 시트에 저장되었습니다.')
+
+# List2 데이터 가져오기
+df_list2 = pd.read_excel(path_tdf_holdings, sheet_name='List2', usecols=[0], names=['종목코드'])
+종목코드_list2 = df_list2['종목코드'].astype(str).tolist()
+fetch_pykrx('Price2', 종목코드_list2)
+
+
+# cumulative_returns_USD_DXY = cumulative_returns_tail[['DX-Y.NYB']]
+# rolling_return_tail2 = pd.read_excel(path_tdf_holdings, sheet_name='rolling_return', index_col=0).tail(500)
+
+
 
 
 
@@ -143,28 +199,54 @@ graph_style = {
 
 # 그래프 레이아웃 설정
 app.layout = html.Div([
-    html.H1("3M Return_based Analysis"),
     
-    # 그래프 1: Rolling Return
+    
+    html.H1("Return_based Analysis"),
+    
+    # 그래프 1: Cumulative Returns (ACWI and BND)
+    dcc.Graph(id='cumulative-returns-acwi-bnd-graph', figure=create_plotly_graph(cumulative_returns_ACWI_BND, 'Cumulative Returns (ACWI and BND)'), style=graph_style),
+
+    # 그래프 2: Cumulative Returns (ACWI and VUG)
+    dcc.Graph(
+        id='cumulative-returns-acwi-vug-graph',
+        figure=create_plotly_graph(cumulative_returns_ACWI_VUG, 'Cumulative Returns (ACWI and VUG)'),
+        style=graph_style
+    ),
+
+    # 그래프 3: Cumulative Returns (VUG, VEA, VWO)
+    dcc.Graph(
+        id='cumulative-returns-vug-vea-vwo-graph',
+        figure=create_plotly_graph(cumulative_returns_VUG_VEA_VWO, 'Cumulative Returns (VUG, VEA, VWO)'),
+        style=graph_style
+    ),
+
+    # 그래프 4: Cumulative Returns (VUG and VTV)
+    dcc.Graph(
+        id='cumulative-returns-vug-vtv-graph',
+        figure=create_plotly_graph(cumulative_returns_VUG_VTV, 'Cumulative Returns (VUG and VTV)'),
+        style=graph_style
+    ),
+
+
+    # 그래프 5: Rolling Return
     dcc.Graph(id='rolling-return-graph', figure=create_plotly_graph(rolling_return_tail, 'Rolling Return'), style=graph_style),
     
-    # 그래프 2: Volatility
+    # 그래프 6: Volatility
     dcc.Graph(id='volatility-graph', figure=create_plotly_graph(volatility_tail, 'Volatility'), style=graph_style),
     
-    # 그래프 3: DD
+    # 그래프 7: DD
     dcc.Graph(id='dd-graph', figure=create_plotly_graph(DD_tail, 'Drawdown'), style=graph_style),
     
-    # 그래프 4: Cumulative Returns
+    # 그래프 8: Cumulative Returns
     dcc.Graph(id='cumulative-returns-graph', figure=create_plotly_graph(cumulative_returns_tail, 'Cumulative Returns'), style=graph_style),
     
-    # 그래프 5: Skewness Change
+    # 그래프 9: Skewness Change
     dcc.Graph(id='skewness-change-graph', figure=create_plotly_graph(skewness_change_tail, 'Skewness Change'), style=graph_style),
     
-    # 그래프 6: Sum of DD
+    # 그래프 10: Sum of DD
     dcc.Graph(id='sum-of-dd-graph', figure=create_plotly_graph(pd.DataFrame(df_Sum_DD), 'Sum of Drawdown'), style=graph_style),
     
-    # 그래프 7: Cumulative Returns (ACWI and BND)
-    dcc.Graph(id='cumulative-returns-acwi-bnd-graph', figure=create_plotly_graph(cumulative_returns_ACWI_BND, 'Cumulative Returns (ACWI and BND)'), style=graph_style),
+
 ])
 
 

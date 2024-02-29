@@ -135,115 +135,169 @@ def create_data_table(path, sheet_name, cell_range):
 # 그래프 데이터 생성
 
 # df_CMA_KRW_History에서 최초 3행을 제거한 새로운 데이터프레임 생성
-df_new = df_CMA_KRW.iloc[2:].reset_index(drop=True)
+df_new_krw = df_CMA_KRW.iloc[2:].reset_index(drop=True)
+df_new_usd = df_CMA_USD.iloc[2:].reset_index(drop=True)
 
 # 데이터의 이름 가져오기
-legend = df_new.iloc[0].tolist()  # 첫 번째 행은 그래프의 범례로 사용될 이름들을 포함합니다.
+legend_krw = df_new_krw.iloc[0].tolist()  # 첫 번째 행은 그래프의 범례로 사용될 이름들을 포함합니다.
+legend_usd = df_new_usd.iloc[0].tolist()
 
 # 실제 데이터 가져오기
-df_data = df_new.iloc[1:, :]  # 데이터의 첫 번째 행은 범례이므로 제외합니다.
-
+df_data_krw = df_new_krw.iloc[1:, :]  # 데이터의 첫 번째 행은 범례이므로 제외합니다.
+df_data_usd = df_new_usd.iloc[1:, :]
 
 # 데이터프레임의 해당 열을 숫자로 변환하고 NaN 값을 0으로 채웁니다.
-df_data[df_data.columns[4]] = pd.to_numeric(df_data[df_data.columns[4]], errors='coerce').fillna(0)
+df_data_krw[df_data_krw.columns[4]] = pd.to_numeric(df_data_krw[df_data_krw.columns[4]], errors='coerce').fillna(0)
+df_data_usd[df_data_usd.columns[4]] = pd.to_numeric(df_data_usd[df_data_usd.columns[4]], errors='coerce').fillna(0)
 
 # 데이터의 최소값과 최대값을 이용하여 표준화를 진행합니다.
-min_value = df_data[df_data.columns[4]].min()
-max_value = df_data[df_data.columns[4]].max()
-df_data[df_data.columns[4]] = (df_data[df_data.columns[4]] - min_value) / (max_value - min_value)
+min_value_krw = df_data_krw[df_data_krw.columns[4]].min()
+max_value_krw = df_data_krw[df_data_krw.columns[4]].max()
+min_value_usd = df_data_usd[df_data_usd.columns[4]].min()
+max_value_usd = df_data_usd[df_data_usd.columns[4]].max()
+df_data_krw[df_data_krw.columns[4]] = (df_data_krw[df_data_krw.columns[4]] - min_value_krw) / (max_value_krw - min_value_krw)
+df_data_usd[df_data_usd.columns[4]] = (df_data_usd[df_data_usd.columns[4]] - min_value_usd) / (max_value_usd - min_value_usd)
 
 # 버블의 크기를 설정합니다. 가장 큰 버블은 절반 크기로 설정합니다.
-max_bubble_size = df_data[df_data.columns[4]].max() * 300
-bubble_sizes = df_data[df_data.columns[4]] * 300
-bubble_sizes[bubble_sizes == max_bubble_size] = max_bubble_size / 2
+max_bubble_size_krw = df_data_krw[df_data_krw.columns[4]].max() * 300
+max_bubble_size_usd = df_data_usd[df_data_usd.columns[4]].max() * 300
+bubble_sizes_krw = df_data_krw[df_data_krw.columns[4]] * 300
+bubble_sizes_usd = df_data_usd[df_data_usd.columns[4]] * 300
+bubble_sizes_krw[bubble_sizes_krw == max_bubble_size_krw] = max_bubble_size_krw / 2
+bubble_sizes_usd[bubble_sizes_usd == max_bubble_size_usd] = max_bubble_size_usd / 2
 
-print(df_data.head)
-
-trace = go.Scatter(
-    x=df_data[df_data.columns[3]],  # 가로축 데이터: 데이터 테이블의 4번째 열
-    y=df_data[df_data.columns[2]],  # 세로축 데이터: 데이터 테이블의 3번째 열
+trace_krw = go.Scatter(
+    x=df_data_krw[df_data_krw.columns[3]],  # 가로축 데이터: 데이터 테이블의 4번째 열
+    y=df_data_krw[df_data_krw.columns[2]],  # 세로축 데이터: 데이터 테이블의 3번째 열
     mode='markers',
-    marker=dict(size=bubble_sizes)  # 버블의 크기: 데이터 테이블의 5번째 열의 표준화된 값으로 설정
+    marker=dict(
+        size=bubble_sizes_krw,  # 버블의 크기: 데이터 테이블의 5번째 열의 표준화된 값으로 설정
+        color='#3762AF',  # 1번 그래프 버블 색상  
+    )
+)
+
+trace_usd = go.Scatter(
+    x=df_data_usd[df_data_usd.columns[3]],  # 가로축 데이터: 데이터 테이블의 4번째 열
+    y=df_data_usd[df_data_usd.columns[2]],  # 세로축 데이터: 데이터 테이블의 3번째 열
+    mode='markers',
+    marker=dict(
+        size=bubble_sizes_usd,  # 버블의 크기: 데이터 테이블의 5번째 열의 표준화된 값으로 설정
+        color='#630',  # 2번 그래프 버블 색상
+    )
 )
 
 
 
 # 레이아웃 생성
 layout = go.Layout(
-    title='자산군별 위험대비수익률',
-    xaxis=dict(title='변동성'),  # 가로축 레이블
+    # title='자산군별 위험대비수익률',
+    xaxis=dict(
+        title='변동성',
+        range=[None,0.35],
+        tickformat='.1%',   # y축의 범위를 0부터 시작하도록 설정합니다.
+    ),  # 가로축 레이블
     yaxis=dict(
         title='기대수익률',  # y축의 제목을 설정합니다.
-        range=[0, None]   # y축의 범위를 0부터 시작하도록 설정합니다.
+        range=[0, None],
+        tickformat='.1%',   # y축의 범위를 0부터 시작하도록 설정합니다.
     ),
-    width=900,  # 그래프의 가로 크기
-    height=600,  # 그래프의 세로 크기
-    margin=dict(l=50, r=50, t=50, b=50),  # 마진 설정
+    width=700,  # 그래프의 가로 크기
+    height=500,  # 그래프의 세로 크기
+    margin=dict(l=50, r=100, t=1, b=1),  # 마진 설정
 )
 
 
 # 그래프 생성
-fig = go.Figure(data=[trace], layout=layout)
-
+fig_krw = go.Figure(data=[trace_krw], layout=layout)
+fig_usd = go.Figure(data=[trace_usd], layout=layout)
 
 # 데이터프레임을 버블 크기 열을 기준으로 내림차순 정렬합니다.
-df_sorted = df_data.sort_values(by=df_data.columns[4], ascending=False)
+df_sorted_krw = df_data_krw.sort_values(by=df_data_krw.columns[4], ascending=False)
+df_sorted_usd = df_data_usd.sort_values(by=df_data_usd.columns[4], ascending=False)
 
 # 상위 7개의 데이터를 추출합니다.
-top_names = df_sorted[df_sorted.columns[1]].head(7)
+top_names_krw = df_sorted_krw[df_sorted_krw.columns[1]].head(7)
+top_names_usd = df_sorted_usd[df_sorted_usd.columns[1]].head(7)
 
 # 상위 7개의 이름을 그래프에 표시합니다.
-text_annotations = []
-for name in top_names:
+text_annotations_krw = []
+text_annotations_usd = []
+for name in top_names_krw:
     # 텍스트 어노테이션을 생성합니다.
     annotation = go.Scatter(
-        x=[df_sorted[df_sorted[df_sorted.columns[1]] == name][df_sorted.columns[3]].values[0]],
-        y=[df_sorted[df_sorted[df_sorted.columns[1]] == name][df_sorted.columns[2]].values[0]],
+        x=[df_sorted_krw[df_sorted_krw[df_sorted_krw.columns[1]] == name][df_sorted_krw.columns[3]].values[0]],
+        y=[df_sorted_krw[df_sorted_krw[df_sorted_krw.columns[1]] == name][df_sorted_krw.columns[2]].values[0]],
         mode='text',
         text=name,
         showlegend=False,
         textposition='middle right',
         textfont=dict(size=10, color='black')
     )
-    text_annotations.append(annotation)
+    text_annotations_krw.append(annotation)
+
+for name in top_names_usd:
+    # 텍스트 어노테이션을 생성합니다.
+    annotation = go.Scatter(
+        x=[df_sorted_usd[df_sorted_usd[df_sorted_usd.columns[1]] == name][df_sorted_usd.columns[3]].values[0]],
+        y=[df_sorted_usd[df_sorted_usd[df_sorted_usd.columns[1]] == name][df_sorted_usd.columns[2]].values[0]],
+        mode='text',
+        text=name,
+        showlegend=False,
+        textposition='middle right',
+        textfont=dict(size=10, color='black')
+    )
+    text_annotations_usd.append(annotation)
 
 # 그래프 데이터에 텍스트 어노테이션을 추가합니다.
-fig.add_traces(text_annotations)
+fig_krw.add_traces(text_annotations_krw)
+fig_usd.add_traces(text_annotations_usd)
 
 
 # 앱 레이아웃 설정
 app.layout = html.Div([
     
-    html.H3('2024 장기자본시장가정(LTCMA)',style={'text-align': 'center'}),
 
     # 그래프 레이아웃 설정
     html.Div([
-        dcc.Graph(
-        id='bubble-chart',
-        figure=fig,
-        style={'width': '70vh', 'height': 'auto'}  # 그래프에 스타일을 적용합니다.
-        )
-    ], style={
-            'margin': 'auto', 
-            'display': 'flex',  # 요소를 가로로 나열하기 위한 스타일
-            'justifyContent': 'center', 
-            # 'width': '90%',  # 가로 크기를 70%로 설정
-            }),  # 그래프를 가로로 가운데로 정렬
+        # 첫 번째 그래프
+        html.Div([
+            html.H3('2024 LTCMA(KRW))', style={'text-align': 'center'}),
+            dcc.Graph(
+                id='bubble-chart-krw',
+                figure=fig_krw,
+                style={'width': '70vh', 'height': 'auto'}  # 그래프에 스타일을 적용합니다.
+            )
+        ], style={'display': 'inline-block', 'margin-right': '20px'}),  # 그래프를 가로로 정렬합니다.
 
+        # 두 번째 그래프
+        html.Div([
+            html.H3('2024 LTCMA(USD))', style={'text-align': 'center'}),
+            dcc.Graph(
+                id='bubble-chart-usd',
+                figure=fig_usd,
+                style={'width': '70vh', 'height': 'auto'}  # 그래프에 스타일을 적용합니다.
+            )
+        ], style={'display': 'inline-block'}),  # 그래프를 가로로 정렬합니다.
+    ], style={
+        'margin': 'auto',
+        'justifyContent': 'center',
+        'textAlign': 'center',
+    }),
 
     # 테이블 1
     html.Div([
-        html.H3('2024 CMA_KRW',style={'text-align': 'center'}),
+        html.H3('2024 CMA_KRW', style={'text-align': 'center'}),
         create_data_table(path_TDF, sheet_CMA_KRW, 'A10:E41')
     ], className='table'),
 
     # 테이블 2
     html.Div([
-        html.H3('2024 CMA_USD',style={'text-align': 'center'}),
+        html.H3('2024 CMA_USD', style={'text-align': 'center'}),
         create_data_table(path_TDF, sheet_CMA_USD, 'A10:E41')
     ], className='table'),
 
 ])
+
 
 # 앱 실행
 if __name__ == '__main__':

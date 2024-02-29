@@ -4,8 +4,6 @@ from dash import Dash, dcc, html
 from dash.dependencies import Input, Output, State
 import dash
 
-from TDF_설정액 import app as 설정액_app
-import TDF_설정액 as 설정액
 
 from TDF_RANK import app as RANK_app
 import TDF_RANK as RANK
@@ -17,7 +15,14 @@ import TDF_포커스 as 포커스
 from TDF_TRP import app as TRP_app
 import TDF_TRP as TRP
 
+from TDF_설정액 import app as 설정액_app
+import TDF_설정액 as 설정액
 
+from TDF_holdings import app as holdings_app
+import TDF_holdings as holdings
+
+from TDF_CMA import app as CMA_app
+import TDF_CMA as CMA
 
 from flask import Flask
 from dash.exceptions import PreventUpdate
@@ -185,42 +190,19 @@ def display_tab_content(
         
         elif grid_id == 'grid-4':
             return html.Div([
-                설정액_app.layout,
+                holdings_app.layout,
                 ])
         
         elif grid_id == 'grid-5':
             return html.Div([
-                html.H3('S자산배분'),
-                html.Div(
-                    [html.Div(   ) ],
-                    style={
-                        'display': 'grid',
-                        'gridTemplateColumns': 'repeat(2, 1fr)',
-                        'gridColumnGap': '50px',
-                        'gridRowGap': '20px',
-                        'margin': '10px',
-                        'padding': '10px',
-                        'gridboderline': '1px',
-                    }
-                )
-            ])
+                holdings_app.layout,
+                ])
+        
         
         elif grid_id == 'grid-6':
-            return html.Div([
-                html.H3('DB자산배분'),
-                html.Div(
-                    [html.Div() ],
-                    style={
-                        'display': 'grid',
-                        'gridTemplateColumns': 'repeat(2, 1fr)',
-                        'gridColumnGap': '50px',
-                        'gridRowGap': '20px',
-                        'margin': '10px',
-                        'padding': '10px',
-                        'gridboderline': '1px',
-                    }
-                )
-            ])
+           return html.Div([
+                CMA_app.layout,
+                ])
 
     # 해당하는 탭의 레이아웃을 반환
     return get_tab_layout(grid_id)

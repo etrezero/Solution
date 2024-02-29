@@ -15,15 +15,11 @@ from PIL import ImageGrab, Image
 from openpyxl import load_workbook
 from openpyxl.utils.cell import get_column_letter
 from datetime import timedelta
-import ctypes
-import openpyxl
-import schedule
-import xlrd
-import xlwings
-import pywin
+
 
 ID = "T08186"
-PW = "T202301!"
+
+PW = "T202403!"
 
 FOS = "C:\\KBFund\\Fo\\REAL\\Bin\\KBFundFO.exe"
 BOS = r'"C:\Program Files (x86)\TOBESOFT\XPLATFORM\9.2.1\XPlatform.exe" -K "KBFundBo" -X "https://fund.kbstar.com:2185/kbfundbo/Resource/KBFundBo.xadl"'
@@ -32,6 +28,7 @@ MOS = r'"C:\Program Files (x86)\TOBESOFT\XPLATFORM\9.2.1\XPlatform.exe" -K "KBFu
 
 
 today_date = datetime.now()
+
 T0 = today_date.strftime("%Y%m%d")
 
 T_1 = today_date - timedelta(days=1)
@@ -518,9 +515,9 @@ bring_excel_sheet_to_front(None, '요약', 'MOS4110')
 
 
 PAUG.hotkey('ctrl','a')
-time.sleep(0.5)
+time.sleep(1)
 PAUG.hotkey('ctrl','v')
-time.sleep(0.5)
+time.sleep(1)
 
 print("MOS 저장완료")
 # # ---<MOS 완료>--------------------------------
@@ -605,7 +602,6 @@ time.sleep(8)
 
 # # 함수를 호출하여 창을 최대화합니다.
 # maximize_window_by_name(window_name)
-
 
 
 
@@ -858,6 +854,7 @@ def bring_excel_sheet_to_front(excel, workbook_name, sheet_name):
 
     
         # 시트를 찾아서 최상위로 가져오기
+
         for sheet in workbook.Sheets:
             if sheet.Name == sheet_name:
                 sheet.Activate()
@@ -880,7 +877,7 @@ time.sleep(1)
 PAUG.hotkey('ctrl','v')
 time.sleep(1)
 
-PAUG.press('y')   #열이 달라도 붙여넣을거냐
+PAUG.press('Enter')   #열이 달라도 붙여넣을거냐
 
 
 excel = win32com.client.Dispatch("Excel.Application")
