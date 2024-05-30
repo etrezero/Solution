@@ -43,9 +43,9 @@ path_모니터링 = r'C:\Covenant\data\0_모니터링_솔루션.xlsx'
 # def main():
 #     # MySQL 연결 정보 설정
 #     connection = pymysql.connect(
-#         host='192.168.195.55',
+#         host='',
 #         user='solution',
-#         password='Solution123!',
+#         password='!',
 #         database='dt',
 #         port=3306,  # 기본 포트는 3306입니다. 필요에 따라 수정하세요.
 #         cursorclass=pymysql.cursors.DictCursor
