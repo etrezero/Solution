@@ -14,18 +14,36 @@ from pykalman import KalmanFilter
 # Dash Application
 app = dash.Dash(__name__)
 
+# Define the list of tickers
+tickers = [
+        'VUG', 'VTV', 'SOXX', 'SPY', 
+        'QQQ', 'ACWI', 'NVDA', 'TSLA', 
+        'IAUM', 'VWO', 'VEA'
+]
+
 app.layout = html.Div(children=[
-    html.H1(children='Stock Price Prediction'),
+    html.H1(children='COVENANT ETF/주가 Prediction', style={'textAlign': 'center'}),
 
     html.Div(children=[
-        html.Label('Enter Ticker Symbol:'),
-        dcc.Input(id='ticker-input', value='VUG', type='text', style={'marginRight': '10px'}),
+        html.Label('Select Ticker Symbol:', style={'display': 'block', 'textAlign': 'center'}),
+        dcc.Dropdown(
+            id='ticker-dropdown',
+            options=[{'label': ticker, 'value': ticker} for ticker in tickers],
+            value='VUG',  # Default value
+            style={'width': '50%', 'margin': 'auto'}
+        ),
         html.Button('Predict', id='predict-button', n_clicks=0),
-    ], style={'marginBottom': '20px'}),
-    
-    html.Div(id='expected-return'),
+    ], style={'marginBottom': '20px', 'textAlign': 'center'}),
 
-    dcc.Graph(id='predicted-graph')
+    html.Div(id='expected-return', style={'textAlign': 'center'}),
+
+    dcc.Graph(
+        id='predicted-graph',
+        style={
+            'width': '75%',
+            'margin': 'auto'
+        }
+    )
 ])
 
 def apply_kalman_filter(prices, time_step):
@@ -44,7 +62,7 @@ def predict_with_kalman_filter(kalman_filtered_data, time_step, num_days):
 @app.callback(
     [Output('predicted-graph', 'figure'), Output('expected-return', 'children')],
     [Input('predict-button', 'n_clicks')],
-    [Input('ticker-input', 'value')]
+    [Input('ticker-dropdown', 'value')]
 )
 def update_graph(n_clicks, ticker):
     if n_clicks > 0:
@@ -169,6 +187,17 @@ def update_graph(n_clicks, ticker):
                 hovermode='x',
                 annotations=[
                     dict(
+                        x=0.5,
+                        y=0.5,
+                        xref='paper',
+                        yref='paper',
+                        text="Covenant",
+                        showarrow=False,
+                        font=dict(size=50, color='rgba(0, 0, 0, 0.4)'),
+                        align='center',
+                        opacity=0.4
+                    ),
+                    dict(
                         x=pd.date_range(end=end_date + timedelta(days=7), periods=7, freq='D')[-1],
                         y=upper_band[-1][0],
                         xref='x', yref='y',
@@ -192,7 +221,7 @@ def update_graph(n_clicks, ticker):
             )
         }
 
-        return figure, f'Expected return for the next week: {expected_return:.2f}%'
+        return figure, f'1 Week Expected return: {expected_return:.2f}%'
 
     return {}, ""
 
