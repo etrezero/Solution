@@ -14,11 +14,6 @@ import scipy.stats as stats
 import concurrent.futures
 from tqdm import tqdm  # tqdm 임포트
 
-# 날짜 변수 정의
-today = datetime.now()
-start_date = '20221005'
-end_date = today.strftime('%Y%m%d')
-
 
 
 
@@ -235,6 +230,12 @@ print("Vol_1Y======================", Vol_1Y)
 
 
 
+df_cum = (1 + df_R).cumprod() - 1
+df_cum.replace([np.inf, -np.inf], np.nan, inplace=True)
+df_cum.fillna(0, inplace=True)
+
+
+
 #그래프 표시기간 영역 별도 지정
 start2 = pd.to_datetime(start_date, format='%Y%m%d') + pd.DateOffset(years=1)
 
@@ -263,9 +264,6 @@ def process_volatility_data(Vol_1Y, start_date, vintage_year):
     return vintage_volatility, 요약_vintage_volatility, vintage_volatility_포커스, vintage_volatility_TRP, vintage_volatility_전체
 
 
-df_cum = (1 + df_R).cumprod() - 1
-df_cum.replace([np.inf, -np.inf], np.nan, inplace=True)
-df_cum.fillna(0, inplace=True)
 
 # Sharpe Ratio 계산
 def calculate_sharpe_ratio(R_1Y, Vol_1Y, risk_free_rate=0.03):
@@ -294,17 +292,39 @@ app = dash.Dash(__name__)
 app.title = 'TDF_포커스'
 server = app.server
 
+
+
 # 대시 앱 레이아웃 설정
 app.layout = html.Div(
-    style={'width': '65%', 'margin-left': '2'},
+    style={'width': '50%', 'margin': 'auto'},
     children=[
         html.H3('TDF_포커스', style={'textAlign': 'center'}),
         
+
+        #빈티지 선택 드롭다운
         dcc.Dropdown(
             id='vintage-dropdown',
             options=[{'label': f'{vintage}', 'value': vintage} for vintage in vintage_list],
             value='2050',  # 기본 선택값
             style={'width': '30%'},  # 드롭다운 너비 설정
+            clearable=False
+        ),
+
+
+        #기간 선택 드롭다운
+        dcc.Dropdown(
+            id='period-dropdown',
+            options=[
+                {'label': '1M', 'value': '1M'},
+                {'label': '3M', 'value': '3M'},
+                {'label': '6M', 'value': '6M'},
+                {'label': '1Y', 'value': '1Y'},
+                {'label': 'YTD', 'value': 'YTD'},
+                {'label': 'ITD', 'value': 'ITD'},
+                {'label': '3Y', 'value': '3Y'}
+            ],
+            value='1Y',  # 기본 선택값
+            style={'width': '30%', 'marginTop': '10px'},
             clearable=False
         ),
 
@@ -329,8 +349,6 @@ app.layout = html.Div(
     ]
 )
 
-
-
 # 콜백 함수
 @app.callback(
     [
@@ -343,27 +361,58 @@ app.layout = html.Div(
         Output('ytd-rank-graph', 'figure'),
         Output('drawdown-graph', 'figure'),
     ],
-    [Input('vintage-dropdown', 'value'),
-     Input('summary-names-input', 'value')]
+    [
+        Input('vintage-dropdown', 'value'),
+        Input('period-dropdown', 'value'),
+        Input('summary-names-input', 'value')
+    ]
 )
-def update_graphs(selected_vintage, summary_names):
+def update_graphs(selected_vintage, selected_period, summary_names):
     summary_list = [name.strip() for name in summary_names.split(',')]
     
-    # 선택된 빈티지와 요약명칭 필터 적용
-    filtered_columns = [col for col in PV1.columns if selected_vintage in col and any(name in col for name in summary_list)]
+    # 빈티지와 요약명칭 필터 적용
+    filtered_columns = [col for col in df_cum.columns if selected_vintage in col and any(name in col for name in summary_list)]
 
-    # 특정 기간 이후의 데이터만 선택하도록 start2 설정
-    start2 = pd.to_datetime(start_date, format='%Y%m%d') + pd.DateOffset(years=1)
+    # 기간별 필터 적용
+    today = datetime.today()
 
+    if selected_period == '1M':
+        start_date = today - relativedelta(months=1)
+    elif selected_period == '3M':
+        start_date = today - relativedelta(months=3)
+    elif selected_period == '6M':
+        start_date = today - relativedelta(months=6)
+    elif selected_period == '1Y':
+        start_date = today - relativedelta(years=1)
+    elif selected_period == 'YTD':
+        start_date = datetime(today.year, 1, 1)
+    elif selected_period == 'ITD':
+        start_date = pd.to_datetime("2020-10-05")
+    else:  # '3Y'
+        start_date = today - relativedelta(years=3)
+
+    # 해당 기간과 빈티지의 데이터를 필터링
+
+    df_R_filtered = df_R[filtered_columns].loc[df_R.index >= start_date]
+    df_cum_filtered = (1 + df_R_filtered).cumprod() - 1
+    
+
+    # NaN, 무한대 값을 처리
+    df_cum_filtered.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df_cum_filtered.fillna(0, inplace=True)
+
+
+
+
+    # 나머지 처리
     vintage_volatility, 요약_vintage_volatility, vintage_volatility_포커스, vintage_volatility_TRP, vintage_volatility_전체 = process_volatility_data(Vol_1Y, start_date, selected_vintage)
 
-    # 특정 기간 이후의 데이터만 필터링
     R_1Y_vintage = df_1Y[[col for col in df_1Y.columns if selected_vintage in col and any(name in col for name in summary_list)]]
-    R_1Y_vintage = R_1Y_vintage[R_1Y_vintage.index > start2]
+    R_1Y_vintage = R_1Y_vintage[R_1Y_vintage.index > start_date]
 
     Sharpe_Ratio_vintage, Sharpe_1Y_rank_vintage = calculate_sharpe_ratio(R_1Y_vintage, vintage_volatility)
-    Sharpe_Ratio_vintage = Sharpe_Ratio_vintage[Sharpe_Ratio_vintage.index > start2]
-    Sharpe_1Y_rank_vintage = Sharpe_1Y_rank_vintage[Sharpe_1Y_rank_vintage.index > start2]
+    Sharpe_Ratio_vintage = Sharpe_Ratio_vintage[Sharpe_Ratio_vintage.index > start_date]
+    Sharpe_1Y_rank_vintage = Sharpe_1Y_rank_vintage[Sharpe_1Y_rank_vintage.index > start_date]
 
     R_YTD, R_YTD_rank = calculate_YTD(PV1)
 
@@ -371,8 +420,8 @@ def update_graphs(selected_vintage, summary_names):
     line_graph = {
         'data': [
             go.Scatter(
-                x=df_cum.index,
-                y=df_cum[col],
+                x=df_cum_filtered.index,
+                y=df_cum_filtered[col],
                 mode='lines',
                 name=col,
                 line=dict(
@@ -384,7 +433,7 @@ def update_graphs(selected_vintage, summary_names):
         ],
         'layout': {
             'title': f'ITD 수익률 (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date', 'tickformat': '%Y%m%d'},
+            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
             'yaxis': {'title': 'Return', 'tickformat': '.0%'},
         }
     }
@@ -467,7 +516,7 @@ def update_graphs(selected_vintage, summary_names):
         ],
         'layout': {
             'title': f'1Y Rolling Volatility (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date'},
+            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
             'yaxis': {'title': 'Volatility', 'tickformat': '.0%'},
         }
     }
@@ -489,7 +538,7 @@ def update_graphs(selected_vintage, summary_names):
         ],
         'layout': {
             'title': f'1Y Rolling Return (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date'},
+            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
             'yaxis': {'title': 'Return', 'tickformat': '.0%'},
         }
     }
@@ -511,7 +560,7 @@ def update_graphs(selected_vintage, summary_names):
         ],
         'layout': {
             'title': f'1Y Rolling Sharpe Ratio (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date'},
+            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
             'yaxis': {'title': 'Sharpe Ratio', 'tickformat': '.0f'},
         }
     }
@@ -533,7 +582,7 @@ def update_graphs(selected_vintage, summary_names):
         ],
         'layout': {
             'title': f'1Y Rolling Sharpe Ratio %Ranking (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date'},
+            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
             'yaxis': {'title': 'Rank (%)', 'tickformat': '.0f', 'range': [100, 1]},
         }
     }
@@ -555,7 +604,7 @@ def update_graphs(selected_vintage, summary_names):
         ],
         'layout': {
             'title': f'YTD Return %Ranking (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date'},
+            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
             'yaxis': {'title': 'Rank (%)', 'tickformat': '.0f', 'range': [100, 1]},
         }
     }
@@ -582,7 +631,7 @@ def update_graphs(selected_vintage, summary_names):
         ],
         'layout': {
             'title': f'1Y Rolling Drawdown (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date'},
+            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
             'yaxis': {'title': 'Drawdown', 'tickformat': '.0%'},
         }
     }
