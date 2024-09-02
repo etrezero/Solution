@@ -1,733 +1,594 @@
-# 필요한 패키지 임포트
-from dash import Dash, dcc, html, dash_table, Input, Output
-from dash.dash_table.Format import Format, Scheme
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
-import openpyxl
-from openpyxl import load_workbook
-import warnings
-from tqdm import tqdm
+import FinanceDataReader as fdr
+from pykrx import stock as pykrx
 import os
-from openpyxl import Workbook
+import pandas as pd
+from datetime import datetime, timedelta
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output, State
+import plotly.graph_objs as go
+import pymysql
+from dateutil.relativedelta import relativedelta
+import numpy as np
+import scipy.stats as stats
+import concurrent.futures
+from tqdm import tqdm  # tqdm 임포트
 
-
-#[Dash 그래프 요소]
-# 그래프 유형: Line (선), Bar (막대), Scatter (산점도), Pie (원형), Heatmap (히트맵), Boxplot (상자그림), Histogram (히스토그램), 3D 그래프 등 다양한 그래프 유형을 제공합니다.
-# 축 설정: X축과 Y축의 레이블, 범위, 타입 (선형, 로그 등), 틱 마크 설정 등.
-# 레이아웃 설정: 그래프의 제목, 글꼴 스타일, 그래프의 크기, 배경 색상, 레이아웃 마진 설정 등.
-# 마커와 라인 스타일: 산점도의 점 크기와 색상, 선 그래프의 선 굵기와 스타일 등.
-# 범례 (Legend): 범례의 위치와 스타일 설정.
-# 호버 텍스트: 데이터 포인트에 마우스를 가져갔을 때 표시되는 정보.
-# 애니메이션: 데이터 변화에 따른 그래프의 동적 변화를 표현.
-# 콜백 및 이벤트 처리: 사용자 상호작용에 따른 그래프의 동적 업데이트.
-# 서브플롯 및 다중 축: 하나의 그래프 안에 여러 개의 서브플롯 또는 다중 축을 구현.
-# 툴팁: 사용자가 그래프의 특정 부분에 마우스를 올렸을 때 추가 정보를 제공.
-# 배경 색상: 그래프 전체 배경의 색상을 설정할 수 있습니다. 이는 그래프 데이터를 강조하거나 특정 테마에 맞게 그래프를 조정하는 데 유용합니다.
-# 서브플롯 배경: 다중 그래프 또는 서브플롯의 배경 색상을 별도로 설정할 수 있습니다. 각 서브플롯이 서로 구분되도록 시각적 구분을 제공합니다.
-# 플롯 영역 배경: X축과 Y축 사이의 주요 그래프 영역의 배경을 설정할 수 있습니다. 이 영역은 데이터가 표시되는 주요 부분입니다.
-# 그리드 라인: 그래프의 배경에 그리드 라인을 추가하여 데이터 포인트의 위치를 더 쉽게 식별할 수 있습니다. 그리드 라인의 색상, 스타일, 두께를 조정할 수 있습니다.
-# 그림자 효과: 그래프에 그림자 효과를 추가하여 시각적 깊이와 입체감을 줄 수 있습니다.
-# 테두리: 그래프의 외곽에 테두리를 추가하여 그래프를 나머지 페이지 또는 대시보드 요소와 구분할 수 있습니다.
-# 불투명도: 그래프의 배경 불투명도를 조정하여 배경 이미지나 색상을 더 강조하거나 더 희미하게 할 수 있습니다.
-# 배경 이미지: 배경으로 이미지를 설정하여 그래프에 추가적인 맥락이나 시각적 효과를 제공할 수 있습니다.
-# 마진 및 패딩: 그래프 주변의 여백을 조정하여 배경 요소와의 관계를 설정할 수 있습니다.
-
-
-# 경고 메시지 무시
-warnings.filterwarnings("ignore", category=UserWarning)
-
-
-
-# 모니터링 ---------> temp
-path_TDF = r'C:/Covenant/data/0.TDF_모니터링.xlsx'  # 이 경로를 정확히 지정해야 합니다.
-sheet_요약 = '요약'  # '요약.xlsx' 파일에 있는 시트 이름
-path_Temp_TDF = r'C:/Covenant/data/Temp_TDF.xlsx'
-sheet_temp = 'temp'
-
-# 지정된 시트를 읽어와서 데이터프레임으로 저장
-df_요약 = pd.read_excel(path_TDF, sheet_name=sheet_요약)
-
-# 파일이 없는 경우 새 Workbook 생성
-if not os.path.exists(path_Temp_TDF):
-    wb = Workbook()
-    wb.save(path_Temp_TDF)
-    print(f"새 파일 '{path_Temp_TDF}' 생성됨.")
-
-# DataFrame을 엑셀 시트로 저장
-with pd.ExcelWriter(path_Temp_TDF, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-    df_요약.to_excel(writer, sheet_name=sheet_temp, index=False)
-
-print(f"'{sheet_요약}' 시트를 '{sheet_temp}' 시트로 저장했습니다.")
+# 날짜 변수 정의
+today = datetime.now()
+start_date = '20221005'
+end_date = today.strftime('%Y%m%d')
 
 
 
 
-# 앱 초기화
-app = Dash(__name__)
+# 데이터베이스 쿼리 실행 함수===========================
+def execute_query(connection, query):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            result = cursor.fetchall()
+            return result
+    except Exception as e:
+        print(f"Error executing query: {e}")
+        return None
 
-# 엑셀 파일 내 특정 셀 범위에서 데이터를 읽어오는 함수
-def read_data_from_excel(path_Temp_TDF, sheet_temp, cell_range):
-    wb = openpyxl.load_workbook(path_Temp_TDF, data_only=True)
-    sheet = wb[sheet_temp]
-    data = []
-    for row in sheet[cell_range]:
-        data.append([cell.value for cell in row])
-    df = pd.DataFrame(data[1:], columns=data[0])
-    return df
+# 데이터베이스에서 데이터 가져오기
+def fetch_data(query):
+    connection = pymysql.connect(
+        host='192.168.195.55',
+        user='solution',
+        password='Solution123!',
+        database='dt',
+        port=3306,
+        cursorclass=pymysql.cursors.DictCursor
+    )
 
-    # df.columns = [str(col) for col in df.columns]
-
-
-# 테이블의 데이터 불러오기
-df_table1 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'A3:G11')
-df_table2 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'I3:O11')
-df_table3 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'Q3:U11')
-df_table4 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'W3:AA12')
-df_table5 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'AC3:AK9')
-df_table6 = read_data_from_excel(path_Temp_TDF, sheet_temp, 'AW43:BE58')
-
-
-
-# 데이터 테이블을 생성하는 함수
-def create_data_table(path_Temp_TDF, sheet_temp, cell_range, percent_columns, font_size=None, header_style=None):
-    df = read_data_from_excel(path_Temp_TDF, sheet_temp, cell_range)
+    result = execute_query(connection, query)
+    connection.close()
     
-    # 열의 너비 계산
-    num_columns = len(df.columns)
-    column_width = "{}%".format(100 / num_columns)
-            
-      
-    # 첫 번째 열을 텍스트로 표시
-    columns = [{"name": str(i), "id": str(i), "type": "text" if i == df.columns[0] else "numeric"} for i in df.columns]
+    if result is not None:
+        return pd.DataFrame(result)
+    else:
+        return None
 
-    # 모든 열을 numeric으로 설정 (첫 번째 열은 텍스트로 설정됨)
-    for column in columns[1:]:
-        column['type'] = 'numeric'
-        column['format'] = Format(precision=0, scheme=Scheme.fixed)  # 모든 숫자 열의 소수 자릿수를 0으로 설정
-
-    # 퍼센트 컬럼으로 지정한 열만 소수점 2자리까지 보이도록 설정
-    if percent_columns:
-        for idx in percent_columns:
-            adjusted_idx = idx - 1
-            if 0 <= adjusted_idx < len(columns):
-                columns[adjusted_idx]['format'] = Format(precision=1, scheme=Scheme.percentage)
-
-    cell_style = {
-        'width': column_width,
-        'minWidth': column_width,
-        'maxWidth': column_width,
-        'whiteSpace': 'normal',
-        'textAlign': 'center',
-        'verticalAlign': 'middle',
-        'fontSize': '12px',
-        # 'fontWeight': 'bold',
-        'overflow': 'hidden',
-        'textOverflow': 'ellipsis'
-    }
-    
-    # 헤더 스타일 변경
-    style_header = {
-        'color': 'White', 
-        'fontweight': 'Bold', 
-        'background-color': '#3762AF', #'darkblue'
-        # 'background-color': '#4BACC6', #연한 비취색
+# 메인 데이터 로드 함수
+def main(start_date, end_date):
+    queries = {
+        'query1': f"""
+            SELECT 
+                A.GIJUN_YMD,         
+                A.FUND_CD,           
+                A.SUIK_JISU,         
+                B.FUND_FNM           
+            FROM 
+                FDTFN201 as A
+            LEFT JOIN 
+                FDTFN001 as B
+            ON 
+                A.FUND_CD = B.FUND_CD
+            WHERE 
+                (B.FUND_FNM LIKE '%TDF%' OR B.FUND_FNM LIKE '%TIF%')
+                AND GIJUN_YMD >= '{start_date}';
+        """,
     }
 
+    results = {}
+
+    # TQDM을 사용하여 쿼리 실행 진행률 표시
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_query = {executor.submit(fetch_data, query): name for name, query in queries.items()}
+        
+        for future in tqdm(concurrent.futures.as_completed(future_to_query), total=len(queries), desc="Fetching data"):
+            query_name = future_to_query[future]
+            try:
+                result = future.result()
+                if result is not None:
+                    results[query_name] = result
+                else:
+                    print(f"{query_name} returned no results.")
+            except Exception as e:
+                print(f"Error fetching data for {query_name}: {e}")
+
+    df1 = results.get('query1')
+
+    if df1 is not None:
+        df1['GIJUN_YMD'] = pd.to_datetime(df1['GIJUN_YMD'].astype(str), format='%Y%m%d')
+        df1 = df1.ffill()
+
+    return df1, print("df1================", df1)
+
+if __name__ == "__main__":
+    start_date = '20221005'
+    end_date = datetime.now().strftime('%Y%m%d')
+
+    # 전체 작업에 대한 진행률 표시
+    with tqdm(total=100, desc="Total Progress", leave=False) as pbar:
+        df1 = main(start_date, end_date)
+        pbar.update(100)  # 모든 작업 완료 후 100%로 업데이트
+
+    print("Processing complete.")
+
+#========================================================
+
+
+
+# 데이터 처리 및 준비
+path_TDF = r'C:\Covenant\data'
+if not os.path.exists(path_TDF):
+    os.makedirs(path_TDF)
     
-    return dash_table.DataTable(
-        data=df.to_dict('records'),
-        columns=columns,
-        page_size=9,  #행 개수 넘어가면 페이지 넘어가
-        style_cell=cell_style,  # 테이블 셀 텍스트 정렬을 중앙으로 설정
-        style_header=style_header,
-    )
+file_name = 'TDF수익률지수.pkl'
+path_TDF_pkl = os.path.join(path_TDF, file_name)
+
+# df1을 .pkl 파일에서 읽어오기
+df1 = pd.read_pickle(path_TDF_pkl)
+
+start = df1['GIJUN_YMD'].iloc[0]
+T0 = df1['GIJUN_YMD'].iloc[-1]
+print(T0)
+
+# 상장지수펀드 제외
+df1 = df1[~df1['FUND_FNM'].str.contains('상장지수')]
+
+# '운용사명' 열을 FUND_FNM 열의 첫 두 글자로 생성
+df1['운용사명'] = df1['FUND_FNM'].apply(lambda x: x[:2] if pd.notnull(x) else '')
+
+# 빈티지열 기본값을 기타로 설정하고 빈티지인 경우 빈티지값을 빈티지 열에 추가
+df1['빈티지'] = '기타'
+
+vintage_list = ['TIF', '2030', '2035', '2040', '2045', '2050', '2055', '2060']
+for vintage in vintage_list:
+    df1.loc[df1['FUND_FNM'].str.contains(vintage), '빈티지'] = vintage
+
+# 디폴트 및 특수구분 열 추가
+df1.loc[df1['FUND_FNM'].str.contains('O'), '디폴트'] = 'O'
+df1.loc[df1['FUND_FNM'].str.contains('(모)'), '운용펀드'] = '운용펀드'
+df1.loc[df1['FUND_FNM'].str.contains('ETF포커스'), '특수구분'] = '한투 포커스'
+df1.loc[df1['FUND_FNM'].str.contains('알아서') & ~df1['FUND_FNM'].str.contains('ETF포커스'), '특수구분'] = '한투 TRP'
+df1.loc[df1['FUND_FNM'].str.contains('삼성한국형'), '특수구분'] = '삼성한국형'
+df1.loc[df1['FUND_FNM'].str.contains('ETF를담은'), '특수구분'] = '삼성ETF담은'
+df1.loc[df1['FUND_FNM'].str.contains('미래에셋자산배분'), '특수구분'] = '미래자산'
+df1.loc[df1['FUND_FNM'].str.contains('미래에셋전략배분'), '특수구분'] = '미래전략'
+df1.loc[df1['FUND_FNM'].str.contains('온국민'), '특수구분'] = 'KB 온국민'
+df1.loc[df1['FUND_FNM'].str.contains('다이나믹'), '특수구분'] = 'KB 다이나믹'
+df1.loc[~df1['FUND_FNM'].str.contains('온국민|다이나믹') & df1['FUND_FNM'].str.contains('케이비'), '특수구분'] = 'KB'
+df1.loc[df1['FUND_FNM'].str.contains('신한장기'), '특수구분'] = '신한 장기성장'
+df1.loc[df1['FUND_FNM'].str.contains('신한마음편한'), '특수구분'] = '신한 마음편한'
+df1.loc[df1['FUND_FNM'].str.contains('KCGI'), '특수구분'] = 'KCGI'
+df1.loc[df1['FUND_FNM'].str.contains('IBK'), '특수구분'] = 'IBK'
+df1.loc[df1['FUND_FNM'].str.contains('BNK'), '특수구분'] = 'BNK'
+df1.loc[df1['FUND_FNM'].str.contains('NH'), '특수구분'] = 'NH'
+df1.loc[df1['FUND_FNM'].str.contains('케이에스에프'), '특수구분'] = 'KSF'
+df1.loc[df1['FUND_FNM'].str.contains('케이디비'), '특수구분'] = 'KDB'
+df1.loc[df1['FUND_FNM'].str.contains('DB자산'), '특수구분'] = 'DB'
+
+# 요약명칭 열 생성
+df1['요약명칭'] = df1.apply(
+    lambda row: f"{row['특수구분']} {row['빈티지']}{' UH' if 'UH' in row['FUND_FNM'] else ''}" 
+                if pd.notnull(row['특수구분']) 
+                else "{} {}{}".format(
+                    row['운용사명'][:2] if pd.notnull(row['운용사명']) 
+                    else (row['FUND_FNM'][:2] if pd.notnull(row['FUND_FNM']) 
+                          else row['FUND_FNM'][:2]), 
+                    row['빈티지'], 
+                    ' UH' if 'UH' in row['FUND_FNM'] else ''),
+    axis=1
+)
+
+# '특수구분'이 '한투 포커스' 또는 '한투 TRP'에 해당하고, '운용펀드'가 '운용펀드'인 행만 남기기
+df1_한투_운용펀드 = df1[df1['특수구분'].isin(['한투 포커스', '한투 TRP']) & df1['운용펀드'].str.contains('운용펀드', na=False)]
+
+# '특수구분'이 '한투 포커스' 또는 '한투 TRP'가 아닌 행만 남기기
+df1_한투외펀드 = df1[~df1['특수구분'].isin(['한투 포커스', '한투 TRP'])]
+
+# 두 데이터프레임을 결합하기
+df1 = pd.concat([df1_한투_운용펀드, df1_한투외펀드])
+
+print('df1_운용펀드===============', df1)
+
+PV1 = df1.pivot_table(index='GIJUN_YMD', columns=['요약명칭'], values='SUIK_JISU', aggfunc='mean', fill_value=0, margins=False)
+PV1.index = pd.to_datetime(PV1.index)
+PV1 = PV1.asfreq('D')
+PV1 = PV1.ffill()
+print('PV1===============', PV1.head())
+
+# 수익률 데이터 계산
+df_R = PV1.pct_change(periods=1).fillna(0)
+df_R = df_R.apply(lambda col: col.map(lambda x: 0 if abs(x) > 0.05 else x))
+df_R.replace([np.inf, -np.inf], np.nan, inplace=True)  # 무한대 값을 NaN으로 대체
+df_R.ffill()
+
+# 1년 전 같은 날짜를 계산하여 각 날짜에 대한 롤링 1년 수익률 계산
+df_RR_1Y = PV1.copy()
+df_RR_1Y['1년 전'] = df_RR_1Y.index - pd.DateOffset(years=1)
+
+def calculate_RR_1Y_return(current_date, df):
+    one_year_ago = current_date - pd.DateOffset(years=1)
+    if one_year_ago in df.index:
+        return df.loc[current_date] / df.loc[one_year_ago] - 1
+    else:
+        return pd.Series([np.nan] * df.shape[1], index=df.columns)
+
+df_1Y = df_RR_1Y.index.map(lambda date: calculate_RR_1Y_return(date, PV1))
+df_1Y = pd.DataFrame(df_1Y.tolist(), index=PV1.index, columns=PV1.columns)
+
+# 결측값을 NaN으로 대체
+df_1Y.replace([np.inf, -np.inf], np.nan, inplace=True)
+df_1Y.ffill()
+
+
+# 변동성 데이터 요약
+요약_vintage_1Y = pd.DataFrame(df_1Y.iloc[-1]).reset_index()
+요약_vintage_1Y.columns = ['요약명칭', '1Y']
+
+print('롤링 1년 수익률===============', df_1Y)
+
+
+# 주간 변동성 연간화 (과거 1년 동안의 데이터로 계산)
+df_W = PV1.pct_change(periods=7).dropna(how='all')
+df_W_interval = df_W[::-1].iloc[::7].dropna(how='all')[::-1]
+
+Vol_1Y = df_W_interval.rolling(window=52).std() * np.sqrt(52)
+Vol_1Y = Vol_1Y.asfreq('D').ffill().dropna(how='all')
+print("Vol_1Y======================", Vol_1Y)
 
 
 
-# 마지막 행이 없는 데이터 - 그래프용
-df_G1 = df_table1.iloc[:-1]
-df_G2 = df_table2.iloc[:-1]
-df_G3 = df_table3.iloc[:-1]
-df_G4 = df_table4.iloc[:-1]
-df_G5 = df_table5.iloc[:-1]
-df_G6 = df_table6.iloc[:-1]
-
-# 테이블 셀 범위 정의
-table_cell = {
-    'table1': 'A3:G11',
-    'table2': 'I3:O11',
-    'table3': 'Q3:U12',
-    'table4': 'W3:AA12',
-    'table5': 'AC3:AK9',
-    'table6': 'AW43:BE58'
-}
-
-percent_column = {
-    '%table1' : [2, 3, 4, 5, 6, 7],
-    '%table2' : [2, 3, 4, 5, 6, 7],
-    '%table3' : [3, 5],
-    '%table4' : [3, 5],
-    '%table5' : [2, 3, 4, 5, 6, 7, 8, 9],
-    '%table6' : [2, 3, 4, 5, 6, 7, 8, 9],
-}
-
-# 그리드 아이템 CSS <A구역 : B구역>
-grid_style = {
-    'display': 'inline-block',  # 인라인 블록 요소로 배치
-    'width': '49%',  # 화면 절반을 차지
-    'margin': '0 auto',
-    'verticalAlign': 'top',  # 상단 정렬
-    # 'padding' :200,
-    # 'paddingLeft': '100px', 
-    # 'border': '1px solid black',  # 바더 라인 추가
-}
-
-# 테이블 스타일
-table_style = {
-    'margin': '0 auto',
-    'margin-top': '7%',
-    'width': '60%',
-    'textAlign': 'center',
-    # 'fontsize' : '30px',
-    'z-index': 3,  # 이 요소가 다른 요소 위에 위치함
-    # 'padding' :300,
-    # 'leftpadding' :300,
-    # 'rightpadding' :300,
-}
-
-# 그래프 형식 (Line, Bar, Dot, Pie) 목록
-graph_types = ['Line', 'Bar', 'Dot', 'Pie','Heatmap','Histogram']
-
-# 그래프 컨테이너 스타일
-graph_container_style = {
-    'position': 'relative',  # 상대적 위치 설정
-    'margin': '0 auto',
-    'width': '90%',  # 컨테이너 너비
-    'z-index': 1,  # 이 요소가 다른 요소 위에 위치함
-    # 'border': '1px solid black',  # 바더 라인 추가
-}
-
-# 그래프 스타일 설정
-graph_style = {
-    'margin': '0 auto',
-    'margin-top': '0%',
-    'width': '85%',
-    'z-index': 1,  # 이 요소가 다른 요소 위에 위치함
-}
+#그래프 표시기간 영역 별도 지정
+start2 = pd.to_datetime(start_date, format='%Y%m%d') + pd.DateOffset(years=1)
 
 
-# 드롭다운 컨테이너 스타일
-dropdown_container_style = {
-    'position': 'absolute',  # 절대적 위치 설정
-    'width': '15%',  # 각 드롭다운의 너비
-    'right': '0%',  # 오른쪽에서 5% 떨어진 곳에 위치
-    'top': '70%',  # 상단에서 50% 위치
-    'transform': 'translateY(-50%)',  # Y축으로 -50% 이동하여 중앙 정렬
-    'border': '0px solid black',  # 바더 라인 추가
-    'z-index': 3,  # 이 요소가 다른 요소 위에 위치함
-}
+# 빈티지에 따른 데이터를 추출하고, 1년 이상의 데이터만 선택하여 처리하는 함수
+def process_volatility_data(Vol_1Y, start_date, vintage_year):
+    vintage_cols = [col for col in Vol_1Y.columns if vintage_year in col]
+    vintage_volatility = Vol_1Y[vintage_cols]
 
-# 개별 드롭다운 스타일
-dropdown_style = {
-    'width': '100%',  # 각 드롭다운의 너비
-    'marginRight': '1%',  # 드롭다운 사이의 간격
-    'textAlign': 'center',
-}
-
-
-# 앱 레이아웃 설정
-app.layout = html.Div([
-    # html.Div(children='한국투자 TDF ETF 포커스 모니터링', 
-    #          style={
-    #              'fontSize': 25, 
-    #              'textAlign': 'center', 
-    #              'position': 'sticky', 
-    #              'top': '0', 
-    #              'zIndex': '100',
-    #              'background-color': 'white'
-    #          }),
+    vintage_volatility = vintage_volatility[vintage_volatility.index > start2]
     
-    # 테이블 1 
-    html.Div([
-        # 테이블 컨테이너
-        html.Div([
-            html.H3('수익률'),
-            create_data_table(
-                path_Temp_TDF, 
-                sheet_temp, 
-                table_cell['table1'],
-                percent_column['%table1'], 
-                12, 
-                {'backgroundColor': 'blue', 'textAlign': 'center'}
-            )
-        ], className='table', style=table_style),
+    # 변동성 데이터 요약
+    요약_vintage_volatility = pd.DataFrame(vintage_volatility.iloc[-1]).reset_index()
+    요약_vintage_volatility.columns = ['요약명칭', '변동성']
 
-        # 그래프 컨테이너
-        html.Div([
-            dcc.Graph(id='line-graph-table1', style=graph_style),
+    
+    # 변동성 데이터 요약 열에 1Y 수익률 열 추가
+    요약_vintage_volatility['수익률'] = 요약_vintage_1Y['1Y']  # 수익률은 변동성과 다른 값으로 계산해야 합니다. 이 부분은 실제 수익률 데이터로 교체해야 합니다.
 
-            # 드롭다운 컨테이너
-            html.Div([
-                dcc.Dropdown(
-                    id='yaxis-column-table1',
-                    options=[{'label': i, 'value': i} for i in df_table1.columns[1:]],
-                    value=df_table1.columns[5],
-                    style=dropdown_style
-                ),
-                dcc.Dropdown(
-                    id='graph-type-table1',
-                    options=[{'label': i, 'value': i} for i in graph_types],
-                    value='Dot',
-                    style=dropdown_style
-                )
-            ], className='dropdown', style=dropdown_container_style),
-        ], className='graph', style=graph_container_style),
-    ], className='grid', style=grid_style),
+    # '포커스'와 'TRP' 필터링
+    요약_vintage_volatility['요약명칭'] = 요약_vintage_volatility['요약명칭'].astype(str)
+    vintage_volatility_포커스 = 요약_vintage_volatility[요약_vintage_volatility['요약명칭'].str.contains('포커스')]
+    vintage_volatility_TRP = 요약_vintage_volatility[요약_vintage_volatility['요약명칭'].str.contains('TRP')]
+    vintage_volatility_전체 = 요약_vintage_volatility[~요약_vintage_volatility['요약명칭'].str.contains('포커스|TRP')]
+
+    return vintage_volatility, 요약_vintage_volatility, vintage_volatility_포커스, vintage_volatility_TRP, vintage_volatility_전체
 
 
-    # 테이블 2
-    html.Div([
-        # 테이블 컨테이너
-        html.Div([
-            html.H3('변동성'),
-            create_data_table(
-                path_Temp_TDF, 
-                sheet_temp, 
-                table_cell['table2'],
-                percent_column['%table2'], 
-                12, 
-                {'backgroundColor': 'blue', 'textAlign': 'center'}
-            )
-        ], className='table', style=table_style),
+df_cum = (1 + df_R).cumprod() - 1
+df_cum.replace([np.inf, -np.inf], np.nan, inplace=True)
+df_cum.fillna(0, inplace=True)
 
-        # 그래프 컨테이너
-        html.Div([
-            dcc.Graph(id='line-graph-table2', style=graph_style),
+# Sharpe Ratio 계산
+def calculate_sharpe_ratio(R_1Y, Vol_1Y, risk_free_rate=0.03):
+    Sharpe_Ratio = pd.DataFrame()
+    common_columns = R_1Y.columns.intersection(Vol_1Y.columns)
 
-            # 드롭다운 컨테이너
-            html.Div([
-                dcc.Dropdown(
-                    id='yaxis-column-table2',
-                    options=[{'label': i, 'value': i} for i in df_table2.columns[1:]],
-                    value=df_table2.columns[5],
-                    style=dropdown_style
-                ),
-                dcc.Dropdown(
-                    id='graph-type-table2',
-                    options=[{'label': i, 'value': i} for i in graph_types],
-                    value='Dot',
-                    style=dropdown_style
-                )
-            ], className='dropdown', style=dropdown_container_style),
-        ], className='graph', style=graph_container_style),
-    ], className='grid', style=grid_style),
+    for col in common_columns:
+        Sharpe_Ratio[col] = (R_1Y[col] - risk_free_rate) / Vol_1Y[col]
+    Sharpe_1Y_rank = 101 - Sharpe_Ratio.rank(axis=1, ascending=True, pct=True) * 100
 
+    return Sharpe_Ratio, Sharpe_1Y_rank
 
-    # 테이블 3
-    html.Div([
-        # 테이블 컨테이너
-        html.Div([
-            html.H3('설정액(시장전체)'),
-            create_data_table(
-                path_Temp_TDF, 
-                sheet_temp, 
-                table_cell['table3'],
-                percent_column['%table3'], 
-                12, 
-                {'backgroundColor': 'blue', 'textAlign': 'center'}
-            )
-        ], className='table', style=table_style),
-
-        # 그래프 컨테이너
-        html.Div([
-            dcc.Graph(id='line-graph-table3', style=graph_style),
-
-            # 드롭다운 컨테이너
-            html.Div([
-                dcc.Dropdown(
-                    id='yaxis-column-table3',
-                    options=[{'label': i, 'value': i} for i in df_table3.columns[1:]],
-                    value=df_table3.columns[1],
-                    style=dropdown_style
-                ),
-                dcc.Dropdown(
-                    id='graph-type-table3',
-                    options=[{'label': i, 'value': i} for i in graph_types],
-                    value='Pie',
-                    style=dropdown_style
-                )
-            ], className='dropdown', style=dropdown_container_style),
-        ], className='graph', style=graph_container_style),
-    ], className='grid', style=grid_style),
+# YTD 계산
+def calculate_YTD(PV1):
+    Year_End = f"{pd.to_datetime(PV1.index[-1]).year - 1}-12-31"
+    R_YTD = (PV1 / PV1.loc[Year_End]) - 1
+    R_YTD.replace([np.inf, -np.inf], np.nan, inplace=True)
+    R_YTD.fillna(0, inplace=True)
+    R_YTD_rank = 101 - R_YTD.rank(axis=1, ascending=True, pct=True) * 100
+    return R_YTD, R_YTD_rank
 
 
 
-    # 테이블 4 
-    html.Div([
-        # 테이블 컨테이너
-        html.Div([
-            html.H3('설정액(포커스)'),
-            create_data_table(
-                path_Temp_TDF, 
-                sheet_temp, 
-                table_cell['table4'],
-                percent_column['%table4'], 
-                12, 
-                {'backgroundColor': 'blue', 'textAlign': 'center'}
-            )
-        ], className='table', style=table_style),
+# 대시 앱 생성
+app = dash.Dash(__name__)
+app.title = 'TDF_포커스'
+server = app.server
 
-        # 그래프 컨테이너
-        html.Div([
-            dcc.Graph(id='line-graph-table4', style=graph_style),
-
-            # 드롭다운 컨테이너
-            html.Div([
-                dcc.Dropdown(
-                    id='yaxis-column-table4',
-                    options=[{'label': i, 'value': i} for i in df_table4.columns[1:]],
-                    value=df_table4.columns[1],
-                    style=dropdown_style
-                ),
-                dcc.Dropdown(
-                    id='graph-type-table4',
-                    options=[{'label': i, 'value': i} for i in graph_types],
-                    value='Pie',
-                    style=dropdown_style
-                )
-            ], className='dropdown', style=dropdown_container_style),
-        ], className='graph', style=graph_container_style),
-    ], className='grid', style=grid_style),
-
-
-    # 테이블 5
-    html.Div([
-        # 테이블 컨테이너
-        html.Div([
-            html.H3('자산배분'),
-            create_data_table(
-                path_Temp_TDF, 
-                sheet_temp, 
-                table_cell['table5'],
-                percent_column['%table5'], 
-                12, 
-            )
-        ], className='table', style=table_style),
-
-        # 그래프 컨테이너
-        html.Div([
-            dcc.Graph(id='line-graph-table5', style=graph_style),
-
-            # 드롭다운 컨테이너
-            html.Div([
-                dcc.Dropdown(
-                    id='yaxis-column-table5',
-                    options=[{'label': i, 'value': i} for i in df_table5.columns[1:]],
-                    value=df_table5.columns[1],
-                    style=dropdown_style
-                ),
-                dcc.Dropdown(
-                    id='graph-type-table5',
-                    options=[{'label': i, 'value': i} for i in graph_types],
-                    value='Pie',
-                    style=dropdown_style
-                )
-            ], className='dropdown', style=dropdown_container_style),
-        ], className='graph', style=graph_container_style),
-    ], className='grid', style=grid_style),
-
-
-    # 테이블 6
-    html.Div([
-        # 테이블 컨테이너
-        html.Div([
-            html.H3('투자비중'),
-            create_data_table(
-                path_Temp_TDF, 
-                sheet_temp, 
-                table_cell['table6'],
-                percent_column['%table6'], 
-                12, 
-                {'backgroundColor': 'blue', 'textAlign': 'center'}
-            )
-        ], className='table', style=table_style),
-
-        # 그래프 컨테이너
-        html.Div([
-            dcc.Graph(id='line-graph-table6', style=graph_style),
-
-            # 드롭다운 컨테이너
-            html.Div([
-                dcc.Dropdown(
-                    id='yaxis-column-table6',
-                    options=[{'label': i, 'value': i} for i in df_table6.columns[1:]],
-                    value=df_table6.columns[6],
-                    style=dropdown_style
-                ),
-                dcc.Dropdown(
-                    id='graph-type-table6',
-                    options=[{'label': i, 'value': i} for i in graph_types],
-                    value='Bar',
-                    style=dropdown_style
-                )
-            ], className='dropdown', style=dropdown_container_style),
-        ], className='graph', style=graph_container_style),
-    ], className='grid', style=grid_style),
-
-
-])
-
-
-# 콜백 함수 정의
-@app.callback(
-    Output('line-graph-table1', 'figure'),
-    [Input('yaxis-column-table1', 'value'),
-     Input('graph-type-table1', 'value')]
-)
-def update_graph_table1(yaxis_column_name, graph_type):
-    if graph_type == 'Dot':
-        # Dot 그래프 생성
-        fig = go.Figure(data=go.Scatter(
-            x=df_table1[df_table1.columns[0]].astype(str),
-            y=df_table1[yaxis_column_name],
-            mode='markers',  # 마커 모드 사용
-            marker=dict(
-                size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
-                opacity=0.8,
-                line=dict(width=2, color='DarkSlateGrey')
-            )
-        ))
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-        fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
+# 대시 앱 레이아웃 설정
+app.layout = html.Div(
+    style={'width': '65%', 'margin-left': '2'},
+    children=[
+        html.H3('TDF_포커스', style={'textAlign': 'center'}),
         
-    elif graph_type == 'Bar':
-        fig = px.bar(df_table1, x=df_table1.columns[0], y=yaxis_column_name)
-    elif graph_type == 'Pie':
-        fig = px.pie(df_table1, names=df_table1.columns[0], values=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-    else:
-        fig = px.line(df_table1, x=df_table1.columns[0], y=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+        dcc.Dropdown(
+            id='vintage-dropdown',
+            options=[{'label': f'{vintage}', 'value': vintage} for vintage in vintage_list],
+            value='2050',  # 기본 선택값
+            style={'width': '30%'},  # 드롭다운 너비 설정
+            clearable=False
+        ),
 
-            # 그래프의 배경을 투명하게 설정
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        # plot_bgcolor='rgba(0,0,0,0)',
-    )
-    return fig
+        # 요약명칭 입력란 추가
+        dcc.Input(
+            id='summary-names-input',
+            type='text',
+            placeholder="Enter summary names, separated by commas",
+            value='한투, 미래, 삼성, KB',  # 기본값 설정
+            style={'width': '30%'},
+        ),
+        html.Button('Update Graphs', id='update-button', n_clicks=0),
 
-
-
-
-
-@app.callback(
-    Output('line-graph-table2', 'figure'),
-    [Input('yaxis-column-table2', 'value'),
-     Input('graph-type-table2', 'value')]
+        dcc.Graph(id='line-graph'),
+        dcc.Graph(id='scatter-graph'),
+        dcc.Graph(id='volatility-graph'),
+        dcc.Graph(id='return-graph'),
+        dcc.Graph(id='sharpe-graph'),
+        dcc.Graph(id='sharpe-rank-graph'),
+        dcc.Graph(id='ytd-rank-graph'),
+        dcc.Graph(id='drawdown-graph'),
+    ]
 )
 
-def update_graph_table2(yaxis_column_name, graph_type):
-    if graph_type == 'Dot':
-        # Dot 그래프 생성
-        fig = go.Figure(data=go.Scatter(
-            x=df_table2[df_table2.columns[0]].astype(str),
-            y=df_table2[yaxis_column_name],
-            mode='markers',  # 마커 모드 사용
-            marker=dict(
-                size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
-                opacity=0.8,
-                line=dict(width=2, color='DarkSlateGrey')
-            )
-        ))
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-        fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
-        
-    elif graph_type == 'Bar':
-        fig = px.bar(df_table2, x=df_table2.columns[0], y=yaxis_column_name)
-    elif graph_type == 'Pie':
-        fig = px.pie(df_table2, names=df_table2.columns[0], values=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-    else:
-        fig = px.line(df_table2, x=df_table2.columns[0], y=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-
-    # 그래프의 배경을 투명하게 설정
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        # plot_bgcolor='rgba(0,0,0,0)'
-    )
-
-    return fig
 
 
-
+# 콜백 함수
 @app.callback(
-    Output('line-graph-table3', 'figure'),
-    [Input('yaxis-column-table3', 'value'),
-     Input('graph-type-table3', 'value')]
+    [
+        Output('line-graph', 'figure'),
+        Output('scatter-graph', 'figure'),
+        Output('volatility-graph', 'figure'),
+        Output('return-graph', 'figure'),
+        Output('sharpe-graph', 'figure'),
+        Output('sharpe-rank-graph', 'figure'),
+        Output('ytd-rank-graph', 'figure'),
+        Output('drawdown-graph', 'figure'),
+    ],
+    [Input('vintage-dropdown', 'value'),
+     Input('summary-names-input', 'value')]
 )
+def update_graphs(selected_vintage, summary_names):
+    summary_list = [name.strip() for name in summary_names.split(',')]
+    
+    # 선택된 빈티지와 요약명칭 필터 적용
+    filtered_columns = [col for col in PV1.columns if selected_vintage in col and any(name in col for name in summary_list)]
 
-def update_graph_table3(yaxis_column_name, graph_type):
-    if graph_type == 'Dot':
-        # Dot 그래프 생성
-        fig = go.Figure(data=go.Scatter(
-            x=df_G3[df_G3.columns[0]].astype(str),
-            y=df_G3[yaxis_column_name],
-            mode='markers',  # 마커 모드 사용
-            marker=dict(
-                size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
-                opacity=0.8,
-                line=dict(width=2, color='DarkSlateGrey')
-            )
-        ))
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-        fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
-        
-    elif graph_type == 'Bar':
-        fig = px.bar(df_G3, x=df_G3.columns[0], y=yaxis_column_name)
-    elif graph_type == 'Pie':
-        fig = px.pie(df_G3, names=df_G3.columns[0], values=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-    else:
-        fig = px.line(df_G3, x=df_G3.columns[0], y=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
+    # 특정 기간 이후의 데이터만 선택하도록 start2 설정
+    start2 = pd.to_datetime(start_date, format='%Y%m%d') + pd.DateOffset(years=1)
 
-    # 그래프의 배경을 투명하게 설정
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        # plot_bgcolor='rgba(0,0,0,0)',
-    )
+    vintage_volatility, 요약_vintage_volatility, vintage_volatility_포커스, vintage_volatility_TRP, vintage_volatility_전체 = process_volatility_data(Vol_1Y, start_date, selected_vintage)
 
-    return fig
+    # 특정 기간 이후의 데이터만 필터링
+    R_1Y_vintage = df_1Y[[col for col in df_1Y.columns if selected_vintage in col and any(name in col for name in summary_list)]]
+    R_1Y_vintage = R_1Y_vintage[R_1Y_vintage.index > start2]
 
+    Sharpe_Ratio_vintage, Sharpe_1Y_rank_vintage = calculate_sharpe_ratio(R_1Y_vintage, vintage_volatility)
+    Sharpe_Ratio_vintage = Sharpe_Ratio_vintage[Sharpe_Ratio_vintage.index > start2]
+    Sharpe_1Y_rank_vintage = Sharpe_1Y_rank_vintage[Sharpe_1Y_rank_vintage.index > start2]
 
-@app.callback(
-    Output('line-graph-table4', 'figure'),
-    [Input('yaxis-column-table4', 'value'),
-     Input('graph-type-table4', 'value')]
-)
+    R_YTD, R_YTD_rank = calculate_YTD(PV1)
 
-def update_graph_table4(yaxis_column_name, graph_type):
-    if graph_type == 'Dot':
-        # Dot 그래프 생성
-        fig = go.Figure(data=go.Scatter(
-            x=df_G4[df_G4.columns[0]].astype(str),
-            y=df_G4[yaxis_column_name],
-            mode='markers',  # 마커 모드 사용
-            marker=dict(
-                size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
-                opacity=0.8,
-                line=dict(width=2, color='DarkSlateGrey')
-            )
-        ))
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-        fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
-        
-    elif graph_type == 'Bar':
-        fig = px.bar(df_G4, x=df_G4.columns[0], y=yaxis_column_name)
-    elif graph_type == 'Pie':
-        fig = px.pie(df_G4, names=df_G4.columns[0], values=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-    else:
-        fig = px.line(df_G4, x=df_G4.columns[0], y=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-
-    # 그래프의 배경을 투명하게 설정
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        # plot_bgcolor='rgba(0,0,0,0)',
-    )
-
-    return fig
+    # Line Graph
+    line_graph = {
+        'data': [
+            go.Scatter(
+                x=df_cum.index,
+                y=df_cum[col],
+                mode='lines',
+                name=col,
+                line=dict(
+                    width=4 if '한투' in col else 1, 
+                    color='#3762AF' if '포커스' in col else ('#630' if '한투' in col else None),
+                    dash='dot' if 'UH' in col else 'solid'  # "UH" 포함시 점선
+                ),
+            ) for col in filtered_columns
+        ],
+        'layout': {
+            'title': f'TDF 수익률 - {selected_vintage}',
+            'xaxis': {'title': 'Date', 'tickformat': '%Y%m%d'},
+            'yaxis': {'title': 'Return', 'tickformat': '.0%'},
+        }
+    }
 
 
-@app.callback(
-    Output('line-graph-table5', 'figure'),
-    [Input('yaxis-column-table5', 'value'),
-     Input('graph-type-table5', 'value')]
-)
-
-def update_graph_table5(yaxis_column_name, graph_type):
-    if graph_type == 'Dot':
-        # Dot 그래프 생성
-        fig = go.Figure(data=go.Scatter(
-            x=df_table5[df_table5.columns[0]].astype(str),
-            y=df_table5[yaxis_column_name],
-            mode='markers',  # 마커 모드 사용
-            marker=dict(
-                size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
-                opacity=0.8,
-                line=dict(width=2, color='DarkSlateGrey')
-            )
-        ))
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-        fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
-        
-    elif graph_type == 'Bar':
-        fig = px.bar(df_table5, x=df_table5.columns[0], y=yaxis_column_name)
-    elif graph_type == 'Pie':
-        fig = px.pie(df_table5, names=df_table5.columns[0], values=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-    else:
-        fig = px.line(df_table5, x=df_table5.columns[0], y=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-
-    # 그래프의 배경을 투명하게 설정
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        # plot_bgcolor='rgba(0,0,0,0)',
-        yaxis=dict(domain=[0, 0.5]), #하단반쪽   cf)상단반쪽 [0.5,1]
-
-    )
-
-    return fig
+    # Scatter Graph
+    scatter_graph = {
+        'data': [
+            go.Scatter(
+                x=vintage_volatility_포커스['변동성'], 
+                y=vintage_volatility_포커스['수익률'],
+                mode='markers+text',
+                name='ETF 포커스',
+                marker=dict(color='#3762AF', size=18),
+                hoverinfo='text',
+                text=vintage_volatility_포커스['요약명칭'],
+                textposition='middle right',  # 텍스트를 마커의 오른쪽에 배치
+                textfont=dict(color='rgba(55, 98, 175, 0.7)'),  # 텍스트의 불투명도를 0.5로 설정
+            ),
+            go.Scatter(
+                x=vintage_volatility_TRP['변동성'], 
+                y=vintage_volatility_TRP['수익률'],
+                mode='markers+text',
+                name='TRP',
+                marker=dict(color='#630', size=18),
+                hoverinfo='text',
+                text=vintage_volatility_TRP['요약명칭'],
+                textposition='middle right',  # 텍스트를 마커의 오른쪽에 배치
+                textfont=dict(color='rgba(102, 51, 0, 0.7)'),  # 텍스트의 불투명도를 0.5로 설정
 
 
+            ),
+            go.Scatter(
+                x=vintage_volatility_전체['변동성'], 
+                y=vintage_volatility_전체['수익률'],
+                mode='markers+text',
+                name='전체 TDF',
+                marker=dict(color='#808080', size=12, opacity=0.3),
+                hoverinfo='text',
+                text=vintage_volatility_전체['요약명칭'],
+                textposition='middle right',  # 텍스트를 마커의 오른쪽에 배치
+                textfont=dict(color='rgba(128, 128, 128, 0.3)'),  # 텍스트의 불투명도를 0.5로 설정
+            ),
+        ],
+        'layout': {
+            'title': f'1Y 위험대비 수익률 (TDF {selected_vintage})',
+            'xaxis': {
+                'title': '변동성', 
+                'tickformat': '.0%', 
+                'range': [0, vintage_volatility_전체['변동성'].max()+0.01],  # x축 범위를 0부터 max까지 설정
+                'autorange': False
+            },
+            'yaxis': {
+                'title': 'Return(YTD)', 
+                'tickformat': '.0%', 
+                'range': [
+                    min(vintage_volatility_전체['수익률'].min(), 0),  # y축 범위를 min값(0보다 작은 경우 포함)부터 max까지 설정
+                    vintage_volatility_전체['수익률'].max()+0.01
+                ],
+                'autorange': False
+            },
+        }
+    }
 
-@app.callback(
-    Output('line-graph-table6', 'figure'),
-    [Input('yaxis-column-table6', 'value'),
-     Input('graph-type-table6', 'value')]
-)
-def update_graph_table6(yaxis_column_name, graph_type):
-    if graph_type == 'Dot':
-        # Dot 그래프 생성
-        fig = go.Figure(data=go.Scatter(
-            x=df_table6[df_table6.columns[0]].astype(str),
-            y=df_table6[yaxis_column_name],
-            mode='markers',  # 마커 모드 사용
-            marker=dict(
-                size=15,  # 데이터 마크 크기 조절 (원하는 크기로 설정)
-                opacity=0.8,
-                line=dict(width=2, color='DarkSlateGrey')
-            )
-        ))
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-        fig.update_xaxes(tickformat="Value", tickangle=-45, tickmode='auto', nticks=12) # 여기서 nticks를 조정하여 간격 변경
-        
-    elif graph_type == 'Bar':
-        fig = px.bar(df_table6, x=df_table6.columns[0], y=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-    elif graph_type == 'Pie':
-        fig = px.pie(df_table6, names=df_table6.columns[0], values=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
-    else:
-        fig = px.line(df_table6, x=df_table6.columns[0], y=yaxis_column_name)
-        fig.update_yaxes(tickformat=".1%")  # Y 축 형식을 백분율로 설정
 
-    # 그래프의 배경을 투명하게 설정
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        # plot_bgcolor='rgba(0,0,0,0)',
-        height=700,
-    )
+    # Volatility Graph
+    volatility_graph = {
+        'data': [
+            go.Scatter(
+                x=vintage_volatility.index,
+                y=vintage_volatility[col],
+                mode='lines',
+                name=col,
+                line=dict(
+                    width=4 if '한투' in col else 1, 
+                    color='#3762AF' if '포커스' in col else ('#630' if '한투' in col else None),
+                    dash='dot' if 'UH' in col else 'solid'  # "UH" 포함시 점선
+                ),
+            ) for col in filtered_columns
+        ],
+        'layout': {
+            'title': f'1Y Rolling Volatility (TDF {selected_vintage})',
+            'xaxis': {'title': 'Date'},
+            'yaxis': {'title': 'Volatility', 'tickformat': '.0%'},
+        }
+    }
 
-    return fig
+    # Return Graph
+    return_graph = {
+        'data': [
+            go.Scatter(
+                x=R_1Y_vintage.index,
+                y=R_1Y_vintage[col],
+                mode='lines',
+                name=col,
+                line=dict(
+                    width=4 if '한투' in col else 1, 
+                    color='#3762AF' if '포커스' in col else ('#630' if '한투' in col else None),
+                    dash='dot' if 'UH' in col else 'solid'  # "UH" 포함시 점선
+                ),
+            ) for col in filtered_columns
+        ],
+        'layout': {
+            'title': f'1Y Rolling Return (TDF {selected_vintage})',
+            'xaxis': {'title': 'Date'},
+            'yaxis': {'title': 'Return', 'tickformat': '.0%'},
+        }
+    }
 
-# 앱 실행
+    # Sharpe Ratio Graph
+    sharpe_graph = {
+        'data': [
+            go.Scatter(
+                x=Sharpe_Ratio_vintage.index,
+                y=Sharpe_Ratio_vintage[col],
+                mode='lines',
+                name=col,
+                line=dict(
+                    width=4 if '한투' in col else 1, 
+                    color='#3762AF' if '포커스' in col else ('#630' if '한투' in col else None),
+                    dash='dot' if 'UH' in col else 'solid'  # "UH" 포함시 점선
+                ),
+            ) for col in filtered_columns
+        ],
+        'layout': {
+            'title': f'1Y Rolling Sharpe Ratio (TDF {selected_vintage})',
+            'xaxis': {'title': 'Date'},
+            'yaxis': {'title': 'Sharpe Ratio', 'tickformat': '.0f'},
+        }
+    }
+
+    # Sharpe Rank Graph
+    sharpe_rank_graph = {
+        'data': [
+            go.Scatter(
+                x=Sharpe_1Y_rank_vintage.index,
+                y=Sharpe_1Y_rank_vintage[col],
+                mode='lines',
+                name=col,
+                line=dict(
+                    width=4 if '한투' in col else 1, 
+                    color='#3762AF' if '포커스' in col else ('#630' if '한투' in col else None),
+                    dash='dot' if 'UH' in col else 'solid'  # "UH" 포함시 점선
+                ),
+            ) for col in filtered_columns
+        ],
+        'layout': {
+            'title': f'1Y Rolling Sharpe Ratio %Ranking (TDF {selected_vintage})',
+            'xaxis': {'title': 'Date'},
+            'yaxis': {'title': 'Rank (%)', 'tickformat': '.0f', 'range': [100, 1]},
+        }
+    }
+
+    # YTD Rank Graph
+    ytd_rank_graph = {
+        'data': [
+            go.Scatter(
+                x=R_YTD_rank.index,
+                y=R_YTD_rank[col],
+                mode='lines',
+                name=col,
+                line=dict(
+                    width=4 if '한투' in col else 1, 
+                    color='#3762AF' if '포커스' in col else ('#630' if '한투' in col else None),
+                    dash='dot' if 'UH' in col else 'solid'  # "UH" 포함시 점선
+                ),
+            ) for col in filtered_columns
+        ],
+        'layout': {
+            'title': f'YTD Return %Ranking (TDF {selected_vintage})',
+            'xaxis': {'title': 'Date'},
+            'yaxis': {'title': 'Rank (%)', 'tickformat': '.0f', 'range': [100, 1]},
+        }
+    }
+
+    # Drawdown Graph
+    cumulative_returns = (1 + df_R).cumprod()
+    max_cumulative_returns = cumulative_returns.rolling(window=365).max()
+    DD = (cumulative_returns / max_cumulative_returns) - 1
+    DD_vintage = DD[[col for col in DD.columns if selected_vintage in col and any(name in col for name in summary_list)]].dropna(how='all')
+
+    drawdown_graph = {
+        'data': [
+            go.Scatter(
+                x=DD_vintage.index,
+                y=DD_vintage[col],
+                mode='lines',
+                name=col,
+                line=dict(
+                    width=4 if '한투' in col else 1, 
+                    color='#3762AF' if '포커스' in col else ('#630' if '한투' in col else None),
+                    dash='dot' if 'UH' in col else 'solid'  # "UH" 포함시 점선
+                ),
+            ) for col in DD_vintage.columns
+        ],
+        'layout': {
+            'title': f'1Y Rolling Drawdown (TDF {selected_vintage})',
+            'xaxis': {'title': 'Date'},
+            'yaxis': {'title': 'Drawdown', 'tickformat': '.0%'},
+        }
+    }
+
+    return line_graph, scatter_graph, volatility_graph, return_graph, sharpe_graph, sharpe_rank_graph, ytd_rank_graph, drawdown_graph
+
+
 if __name__ == '__main__':
-    app.run_server(debug=True,host='0.0.0.0') 
-
-
-    #http://192.168.194.140:8050
+    app.run_server(debug=False, host='0.0.0.0', port=8050)
