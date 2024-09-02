@@ -432,7 +432,7 @@ def update_graphs(selected_vintage, selected_period, summary_names):
             ) for col in filtered_columns
         ],
         'layout': {
-            'title': f'ITD 수익률 (TDF {selected_vintage})',
+            'title': f'{selected_period} 수익률 (TDF {selected_vintage})',
             'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
             'yaxis': {'title': 'Return', 'tickformat': '.0%'},
         }
@@ -484,7 +484,7 @@ def update_graphs(selected_vintage, selected_period, summary_names):
                 'title': '변동성', 
                 'tickformat': '.0%', 
                 'range': [0, vintage_volatility_전체['변동성'].max()+0.01],  # x축 범위를 0부터 max까지 설정
-                'autorange': True
+                'autorange': False
             },
             'yaxis': {
                 'title': 'Return(YTD)', 
