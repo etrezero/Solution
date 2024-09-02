@@ -383,7 +383,7 @@ def update_graphs(selected_vintage, summary_names):
             ) for col in filtered_columns
         ],
         'layout': {
-            'title': f'TDF 수익률 - {selected_vintage}',
+            'title': f'ITD 수익률 (TDF {selected_vintage})',
             'xaxis': {'title': 'Date', 'tickformat': '%Y%m%d'},
             'yaxis': {'title': 'Return', 'tickformat': '.0%'},
         }
@@ -401,7 +401,7 @@ def update_graphs(selected_vintage, summary_names):
                 marker=dict(color='#3762AF', size=18),
                 hoverinfo='text',
                 text=vintage_volatility_포커스['요약명칭'],
-                textposition='middle right',  # 텍스트를 마커의 오른쪽에 배치
+                textposition='bottom center',  # 텍스트를 마커의 오른쪽에 배치
                 textfont=dict(color='rgba(55, 98, 175, 0.7)'),  # 텍스트의 불투명도를 0.5로 설정
             ),
             go.Scatter(
@@ -412,7 +412,7 @@ def update_graphs(selected_vintage, summary_names):
                 marker=dict(color='#630', size=18),
                 hoverinfo='text',
                 text=vintage_volatility_TRP['요약명칭'],
-                textposition='middle right',  # 텍스트를 마커의 오른쪽에 배치
+                textposition='bottom center',  # 텍스트를 마커의 오른쪽에 배치
                 textfont=dict(color='rgba(102, 51, 0, 0.7)'),  # 텍스트의 불투명도를 0.5로 설정
 
 
@@ -435,7 +435,7 @@ def update_graphs(selected_vintage, summary_names):
                 'title': '변동성', 
                 'tickformat': '.0%', 
                 'range': [0, vintage_volatility_전체['변동성'].max()+0.01],  # x축 범위를 0부터 max까지 설정
-                'autorange': False
+                'autorange': True
             },
             'yaxis': {
                 'title': 'Return(YTD)', 
