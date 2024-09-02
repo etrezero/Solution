@@ -91,33 +91,40 @@ def main(start_date, end_date):
         df1['GIJUN_YMD'] = pd.to_datetime(df1['GIJUN_YMD'].astype(str), format='%Y%m%d')
         df1 = df1.ffill()
 
-    return df1, print("df1================", df1)
+    return df1
 
 if __name__ == "__main__":
     start_date = '20221005'
     end_date = datetime.now().strftime('%Y%m%d')
 
-    # 전체 작업에 대한 진행률 표시
-    with tqdm(total=100, desc="Total Progress", leave=False) as pbar:
-        df1 = main(start_date, end_date)
-        pbar.update(100)  # 모든 작업 완료 후 100%로 업데이트
-
-    print("Processing complete.")
+    df1 = main(start_date, end_date)
+    print("df1================", df1)
 
 #========================================================
 
 
 
-# 데이터 처리 및 준비
-path_TDF = r'C:\Covenant\data'
-if not os.path.exists(path_TDF):
-    os.makedirs(path_TDF)
+# # 데이터 처리 및 준비========================
+# path_TDF = r'C:\Covenant\data'
+# if not os.path.exists(path_TDF):
+#     os.makedirs(path_TDF)
     
-file_name = 'TDF수익률지수.pkl'
-path_TDF_pkl = os.path.join(path_TDF, file_name)
+# file_name = 'TDF수익률지수.pkl'
+# path_TDF_pkl = os.path.join(path_TDF, file_name)
 
-# df1을 .pkl 파일에서 읽어오기
-df1 = pd.read_pickle(path_TDF_pkl)
+# # df1을 피클 파일로 저장
+# df1.to_pickle(path_TDF_pkl)
+
+# # df1을 .pkl 파일에서 읽어오기
+# df1 = pd.read_pickle(path_TDF_pkl)
+#===========================================
+
+
+
+
+
+
+
 
 start = df1['GIJUN_YMD'].iloc[0]
 T0 = df1['GIJUN_YMD'].iloc[-1]
@@ -158,6 +165,8 @@ df1.loc[df1['FUND_FNM'].str.contains('케이에스에프'), '특수구분'] = 'K
 df1.loc[df1['FUND_FNM'].str.contains('케이디비'), '특수구분'] = 'KDB'
 df1.loc[df1['FUND_FNM'].str.contains('DB자산'), '특수구분'] = 'DB'
 
+
+
 # 요약명칭 열 생성
 df1['요약명칭'] = df1.apply(
     lambda row: f"{row['특수구분']} {row['빈티지']}{' UH' if 'UH' in row['FUND_FNM'] else ''}" 
@@ -177,16 +186,17 @@ df1_한투_운용펀드 = df1[df1['특수구분'].isin(['한투 포커스', '한
 # '특수구분'이 '한투 포커스' 또는 '한투 TRP'가 아닌 행만 남기기
 df1_한투외펀드 = df1[~df1['특수구분'].isin(['한투 포커스', '한투 TRP'])]
 
+
 # 두 데이터프레임을 결합하기
 df1 = pd.concat([df1_한투_운용펀드, df1_한투외펀드])
+print('df1===============', df1)
 
-print('df1_운용펀드===============', df1)
 
 PV1 = df1.pivot_table(index='GIJUN_YMD', columns=['요약명칭'], values='SUIK_JISU', aggfunc='mean', fill_value=0, margins=False)
 PV1.index = pd.to_datetime(PV1.index)
 PV1 = PV1.asfreq('D')
 PV1 = PV1.ffill()
-print('PV1===============', PV1.head())
+print('PV1===============', PV1.tail())
 
 # 수익률 데이터 계산
 df_R = PV1.pct_change(periods=1).fillna(0)
@@ -221,8 +231,13 @@ print('롤링 1년 수익률===============', df_1Y)
 
 
 # 주간 변동성 연간화 (과거 1년 동안의 데이터로 계산)
+
 df_W = PV1.pct_change(periods=7).dropna(how='all')
-df_W_interval = df_W[::-1].iloc[::7].dropna(how='all')[::-1]
+df_W_interval = df_W[::-1].iloc[::7][::-1]
+print("df_W_interval==============", df_W_interval)
+
+
+
 
 Vol_1Y = df_W_interval.rolling(window=52).std() * np.sqrt(52)
 Vol_1Y = Vol_1Y.asfreq('D').ffill().dropna(how='all')
@@ -276,9 +291,10 @@ def calculate_sharpe_ratio(R_1Y, Vol_1Y, risk_free_rate=0.03):
 
     return Sharpe_Ratio, Sharpe_1Y_rank
 
+
 # YTD 계산
 def calculate_YTD(PV1):
-    Year_End = f"{pd.to_datetime(PV1.index[-1]).year - 1}-12-31"
+    Year_End = f"{datetime.today().year - 1}-12-31"
     R_YTD = (PV1 / PV1.loc[Year_End]) - 1
     R_YTD.replace([np.inf, -np.inf], np.nan, inplace=True)
     R_YTD.fillna(0, inplace=True)
