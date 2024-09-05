@@ -13,9 +13,11 @@ import numpy as np
 import scipy.stats as stats
 import concurrent.futures
 from tqdm import tqdm  # tqdm 임포트
+import pickle
 
 
-
+# 캐시 만료 기간 설정
+cache_expiry = timedelta(days=1)
 
 # 데이터베이스 쿼리 실행 함수===========================
 def execute_query(connection, query):
@@ -47,8 +49,41 @@ def fetch_data(query):
     else:
         return None
 
+# 캐시 저장 함수
+def save_cache(data, path):
+    with open(path, 'wb') as f:
+        pickle.dump(data, f)
+
+# 캐시 로드 함수
+def load_cache(path):
+    if os.path.exists(path):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+    return None
+
+# 캐시 유효성 검사 함수
+def is_cache_valid(path, expiry_duration):
+    if os.path.exists(path):
+        cache_mtime = datetime.fromtimestamp(os.path.getmtime(path))
+        if datetime.now() - cache_mtime < expiry_duration:
+            return True
+    return False
+
 # 메인 데이터 로드 함수
 def main(start_date, end_date):
+    path_TDF = r'C:\Covenant\data'
+    if not os.path.exists(path_TDF):
+        os.makedirs(path_TDF)
+    
+    file_name = 'TDF수익률지수.pkl'
+    path_TDF_pkl = os.path.join(path_TDF, file_name)
+
+    # 캐시가 유효한지 확인
+    if is_cache_valid(path_TDF_pkl, cache_expiry):
+        print("Loading data from cache...")
+        return load_cache(path_TDF_pkl)
+
+    # 데이터베이스에서 데이터 가져오기
     queries = {
         'query1': f"""
             SELECT 
@@ -85,90 +120,82 @@ def main(start_date, end_date):
             except Exception as e:
                 print(f"Error fetching data for {query_name}: {e}")
 
-    df1 = results.get('query1')
+    df = results.get('query1')
 
-    if df1 is not None:
-        df1['GIJUN_YMD'] = pd.to_datetime(df1['GIJUN_YMD'].astype(str), format='%Y%m%d')
-        df1 = df1.ffill()
+    if df is not None:
+        df['GIJUN_YMD'] = pd.to_datetime(df['GIJUN_YMD'].astype(str), format='%Y%m%d')
+        df = df.ffill()
 
-    return df1
+        # 캐시로 저장
+        save_cache(df, path_TDF_pkl)
+        print(f"Data cached at {path_TDF_pkl}")
+
+    return df
 
 if __name__ == "__main__":
     start_date = '20221005'
     end_date = datetime.now().strftime('%Y%m%d')
 
-    df1 = main(start_date, end_date)
-    print("df1================", df1)
+    df = main(start_date, end_date)
+    print("df================", df)
 
 #========================================================
 
 
 
-# # 데이터 처리 및 준비========================
-# path_TDF = r'C:\Covenant\data'
-# if not os.path.exists(path_TDF):
-#     os.makedirs(path_TDF)
-    
-# file_name = 'TDF수익률지수.pkl'
-# path_TDF_pkl = os.path.join(path_TDF, file_name)
-
-# # df1을 피클 파일로 저장
-# df1.to_pickle(path_TDF_pkl)
-
-# # df1을 .pkl 파일에서 읽어오기
-# df1 = pd.read_pickle(path_TDF_pkl)
-#===========================================
-
-
-
-
-
-
-
-
-start = df1['GIJUN_YMD'].iloc[0]
-T0 = df1['GIJUN_YMD'].iloc[-1]
+start = df['GIJUN_YMD'].iloc[0]
+T0 = df['GIJUN_YMD'].iloc[-1]
 print(T0)
 
-# 상장지수펀드 제외
-df1 = df1[~df1['FUND_FNM'].str.contains('상장지수')]
+
 
 # '운용사명' 열을 FUND_FNM 열의 첫 두 글자로 생성
-df1['운용사명'] = df1['FUND_FNM'].apply(lambda x: x[:2] if pd.notnull(x) else '')
+df['운용사명'] = df['FUND_FNM'].apply(lambda x: x[:2] if pd.notnull(x) else '')
 
 # 빈티지열 기본값을 기타로 설정하고 빈티지인 경우 빈티지값을 빈티지 열에 추가
-df1['빈티지'] = '기타'
+df['빈티지'] = '기타'
 
 vintage_list = ['TIF', '2030', '2035', '2040', '2045', '2050', '2055', '2060']
 for vintage in vintage_list:
-    df1.loc[df1['FUND_FNM'].str.contains(vintage), '빈티지'] = vintage
+    df.loc[df['FUND_FNM'].str.contains(vintage), '빈티지'] = vintage
+
 
 # 디폴트 및 특수구분 열 추가
-df1.loc[df1['FUND_FNM'].str.contains('O'), '디폴트'] = 'O'
-df1.loc[df1['FUND_FNM'].str.contains('(모)'), '운용펀드'] = '운용펀드'
-df1.loc[df1['FUND_FNM'].str.contains('ETF포커스'), '특수구분'] = '한투 포커스'
-df1.loc[df1['FUND_FNM'].str.contains('알아서') & ~df1['FUND_FNM'].str.contains('ETF포커스'), '특수구분'] = '한투 TRP'
-df1.loc[df1['FUND_FNM'].str.contains('삼성한국형'), '특수구분'] = '삼성한국형'
-df1.loc[df1['FUND_FNM'].str.contains('ETF를담은'), '특수구분'] = '삼성ETF담은'
-df1.loc[df1['FUND_FNM'].str.contains('미래에셋자산배분'), '특수구분'] = '미래자산'
-df1.loc[df1['FUND_FNM'].str.contains('미래에셋전략배분'), '특수구분'] = '미래전략'
-df1.loc[df1['FUND_FNM'].str.contains('온국민'), '특수구분'] = 'KB 온국민'
-df1.loc[df1['FUND_FNM'].str.contains('다이나믹'), '특수구분'] = 'KB 다이나믹'
-df1.loc[~df1['FUND_FNM'].str.contains('온국민|다이나믹') & df1['FUND_FNM'].str.contains('케이비'), '특수구분'] = 'KB'
-df1.loc[df1['FUND_FNM'].str.contains('신한장기'), '특수구분'] = '신한 장기성장'
-df1.loc[df1['FUND_FNM'].str.contains('신한마음편한'), '특수구분'] = '신한 마음편한'
-df1.loc[df1['FUND_FNM'].str.contains('KCGI'), '특수구분'] = 'KCGI'
-df1.loc[df1['FUND_FNM'].str.contains('IBK'), '특수구분'] = 'IBK'
-df1.loc[df1['FUND_FNM'].str.contains('BNK'), '특수구분'] = 'BNK'
-df1.loc[df1['FUND_FNM'].str.contains('NH'), '특수구분'] = 'NH'
-df1.loc[df1['FUND_FNM'].str.contains('케이에스에프'), '특수구분'] = 'KSF'
-df1.loc[df1['FUND_FNM'].str.contains('케이디비'), '특수구분'] = 'KDB'
-df1.loc[df1['FUND_FNM'].str.contains('DB자산'), '특수구분'] = 'DB'
+df.loc[df['FUND_FNM'].str.contains('상장지수', na=False), 'ETF'] = 'ETF'
+
+df.loc[df['FUND_FNM'].str.contains('O'), '디폴트'] = 'DO'
+df.loc[df['FUND_FNM'].str.contains('(모)'), '운용펀드'] = '운용펀드'
+df.loc[df['FUND_FNM'].str.contains('ETF포커스'), '특수구분'] = '한투 포커스'
+df.loc[df['FUND_FNM'].str.contains('알아서') & ~df['FUND_FNM'].str.contains('ETF포커스'), '특수구분'] = '한투 TRP'
+df.loc[df['FUND_FNM'].str.contains('삼성한국형'), '특수구분'] = '삼성한국형'
+df.loc[df['FUND_FNM'].str.contains('ETF를담은'), '특수구분'] = '삼성ETF담은'
+df.loc[df['FUND_FNM'].str.contains('미래에셋자산배분'), '특수구분'] = '미래자산'
+df.loc[df['FUND_FNM'].str.contains('미래에셋전략배분'), '특수구분'] = '미래전략'
+df.loc[df['FUND_FNM'].str.contains('온국민'), '특수구분'] = 'KB 온국민'
+df.loc[df['FUND_FNM'].str.contains('다이나믹'), '특수구분'] = 'KB 다이나믹'
+df.loc[~df['FUND_FNM'].str.contains('온국민|다이나믹') & df['FUND_FNM'].str.contains('케이비'), '특수구분'] = 'KB'
+df.loc[df['FUND_FNM'].str.contains('신한장기'), '특수구분'] = '신한 장기성장'
+df.loc[df['FUND_FNM'].str.contains('신한마음편한'), '특수구분'] = '신한 마음편한'
+df.loc[df['FUND_FNM'].str.contains('KCGI'), '특수구분'] = 'KCGI'
+df.loc[df['FUND_FNM'].str.contains('IBK'), '특수구분'] = 'IBK'
+df.loc[df['FUND_FNM'].str.contains('BNK'), '특수구분'] = 'BNK'
+df.loc[df['FUND_FNM'].str.contains('NH'), '특수구분'] = 'NH'
+df.loc[df['FUND_FNM'].str.contains('케이에스에프'), '특수구분'] = 'KSF'
+df.loc[df['FUND_FNM'].str.contains('케이디비'), '특수구분'] = 'KDB'
+df.loc[df['FUND_FNM'].str.contains('DB자산'), '특수구분'] = 'DB'
 
 
+
+# 상장지수펀드
+df_ETF = df[df['FUND_FNM'].str.contains('상장지수')]
+print("df_ETF==================================", df_ETF)
+
+
+df_디폴트 = df[df['디폴트'] == 'DO']
+print("디폴트===============", df_디폴트)
 
 # 요약명칭 열 생성
-df1['요약명칭'] = df1.apply(
+df['요약명칭'] = df.apply(
     lambda row: f"{row['특수구분']} {row['빈티지']}{' UH' if 'UH' in row['FUND_FNM'] else ''}" 
                 if pd.notnull(row['특수구분']) 
                 else "{} {}{}".format(
@@ -181,18 +208,18 @@ df1['요약명칭'] = df1.apply(
 )
 
 # '특수구분'이 '한투 포커스' 또는 '한투 TRP'에 해당하고, '운용펀드'가 '운용펀드'인 행만 남기기
-df1_한투_운용펀드 = df1[df1['특수구분'].isin(['한투 포커스', '한투 TRP']) & df1['운용펀드'].str.contains('운용펀드', na=False)]
+df_한투_운용펀드 = df[df['특수구분'].isin(['한투 포커스', '한투 TRP']) & df['운용펀드'].str.contains('운용펀드', na=False)]
 
 # '특수구분'이 '한투 포커스' 또는 '한투 TRP'가 아닌 행만 남기기
-df1_한투외펀드 = df1[~df1['특수구분'].isin(['한투 포커스', '한투 TRP'])]
+df_한투외펀드 = df[~df['특수구분'].isin(['한투 포커스', '한투 TRP'])]
 
 
 # 두 데이터프레임을 결합하기
-df1 = pd.concat([df1_한투_운용펀드, df1_한투외펀드])
-print('df1===============', df1)
+df = pd.concat([df_한투_운용펀드, df_한투외펀드])
+print('df===============', df)
 
 
-PV1 = df1.pivot_table(index='GIJUN_YMD', columns=['요약명칭'], values='SUIK_JISU', aggfunc='mean', fill_value=0, margins=False)
+PV1 = df.pivot_table(index='GIJUN_YMD', columns=['요약명칭'], values='SUIK_JISU', aggfunc='mean', fill_value=0, margins=False)
 PV1.index = pd.to_datetime(PV1.index)
 PV1 = PV1.asfreq('D')
 PV1 = PV1.ffill()
@@ -223,15 +250,19 @@ df_1Y.replace([np.inf, -np.inf], np.nan, inplace=True)
 df_1Y.ffill()
 
 
-# 변동성 데이터 요약
-요약_vintage_1Y = pd.DataFrame(df_1Y.iloc[-1]).reset_index()
-요약_vintage_1Y.columns = ['요약명칭', '1Y']
 
+
+
+# 수익률 데이터 요약
+요약_vintage_1Y = pd.DataFrame(df_1Y.iloc[-1]).reset_index()
+요약_vintage_1Y.columns = ['요약명칭', '수익률']
 print('롤링 1년 수익률===============', df_1Y)
+print('요약_vintage_1Y===============', 요약_vintage_1Y)
+
+
 
 
 # 주간 변동성 연간화 (과거 1년 동안의 데이터로 계산)
-
 df_W = PV1.pct_change(periods=7).dropna(how='all')
 df_W_interval = df_W[::-1].iloc[::7][::-1]
 print("df_W_interval==============", df_W_interval)
@@ -267,8 +298,9 @@ def process_volatility_data(Vol_1Y, start_date, vintage_year):
     요약_vintage_volatility.columns = ['요약명칭', '변동성']
 
     
-    # 변동성 데이터 요약 열에 1Y 수익률 열 추가
-    요약_vintage_volatility['수익률'] = 요약_vintage_1Y['1Y']  # 수익률은 변동성과 다른 값으로 계산해야 합니다. 이 부분은 실제 수익률 데이터로 교체해야 합니다.
+    # 수익률 열 추가: 요약_vintage_1Y와 병합
+    요약_vintage_volatility = pd.merge(요약_vintage_volatility, 요약_vintage_1Y, on='요약명칭', how='left')
+    요약_vintage_volatility.dropna()
 
     # '포커스'와 'TRP' 필터링
     요약_vintage_volatility['요약명칭'] = 요약_vintage_volatility['요약명칭'].astype(str)
@@ -348,7 +380,7 @@ app.layout = html.Div(
         dcc.Input(
             id='summary-names-input',
             type='text',
-            placeholder="Enter summary names, separated by commas",
+            placeholder="운용사 명칭입력 - 콤마(,)로 구분",
             value='한투, 미래, 삼성, KB',  # 기본값 설정
             style={'width': '30%'},
         ),
@@ -506,7 +538,7 @@ def update_graphs(selected_vintage, selected_period, summary_names):
                 'title': 'Return(YTD)', 
                 'tickformat': '.0%', 
                 'range': [
-                    min(vintage_volatility_전체['수익률'].min(), 0),  # y축 범위를 min값(0보다 작은 경우 포함)부터 max까지 설정
+                    vintage_volatility_전체['수익률'].min()-0.01,  
                     vintage_volatility_전체['수익률'].max()+0.01
                 ],
                 'autorange': False
@@ -554,8 +586,13 @@ def update_graphs(selected_vintage, selected_period, summary_names):
         ],
         'layout': {
             'title': f'1Y Rolling Return (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
-            'yaxis': {'title': 'Return', 'tickformat': '.0%'},
+            'xaxis': {
+                    'title': 'Date', 
+                    'tickformat': '%Y-%m-%d',
+                    'autorange': True,  # x축 스케일 자동 설정
+                    },
+            'yaxis': {'title': 'Return', 
+                    'tickformat': '.0%'},
         }
     }
 
@@ -576,7 +613,10 @@ def update_graphs(selected_vintage, selected_period, summary_names):
         ],
         'layout': {
             'title': f'1Y Rolling Sharpe Ratio (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
+            'xaxis': {'title': 'Date',
+                    'tickformat': '%Y-%m-%d',
+                    'autorange': True,  # x축 스케일 자동 설정
+                    },
             'yaxis': {'title': 'Sharpe Ratio', 'tickformat': '.0f'},
         }
     }
@@ -598,7 +638,10 @@ def update_graphs(selected_vintage, selected_period, summary_names):
         ],
         'layout': {
             'title': f'1Y Rolling Sharpe Ratio %Ranking (TDF {selected_vintage})',
-            'xaxis': {'title': 'Date', 'tickformat': '%Y-%m-%d'},
+            'xaxis': {'title': 'Date', 
+                    'tickformat': '%Y-%m-%d',
+                    'autorange': True,  # x축 스케일 자동 설정
+                    },
             'yaxis': {'title': 'Rank (%)', 'tickformat': '.0f', 'range': [100, 1]},
         }
     }
