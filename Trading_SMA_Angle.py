@@ -20,10 +20,11 @@ available_stocks = {
     "252670": "KODEX 200선물인버스2X", 
     "122630": "KODEX 레버리지", 
     "069500": "KODEX 200",
-    "SOXX": "미국반도체",
-    "VUG": "미국성장주",
-    "SPY": "미국",
-    }
+    "SOXX": "SOXX",
+    "VUG": "VUG",
+    "SPY": "SPY",
+    "MAGS": "MAGS",
+}
 
 # 연도 선택을 위한 Dropdown 옵션 생성
 current_year = datetime.today().year
@@ -57,33 +58,39 @@ app.layout = html.Div(
     },
    
     children=[
-        html.H1("Stock Signal Analysis Dashboard", style={'textAlign': 'center'}),  # 중앙 정렬
+        html.H1("Covenant AI Signal Trading Model", style={'textAlign': 'center'}),  # 중앙 정렬
        
         html.Label("Select Stock:"),
         dcc.Dropdown(
             id='stock-dropdown',
             options=[{'label': name, 'value': code} for code, name in available_stocks.items()],
-            value='069500'  # 기본 종목
+            value='069500',  # 기본 종목
+            style={'width': '50%',},
         ),
         
         html.Label("Select Start Year:"),
         dcc.Dropdown(
             id='year-dropdown',
             options=year_options,
-            value=current_year - 1  # 기본값은 1년 전
+            value=current_year,
+            style={'width': '40%',},
         ),
 
-        html.Label("Select Time Window for SMA:"),
-        dcc.Input(id='sma-window', type='number', value=5, min=1, step=1),
+        html.Label("Time Window for Prediction:"),
+        dcc.Input(
+            id='sma-window', 
+            type='number', 
+            style={'width': '10%',},
+            value=5, min=1, step=1),
         
         # Loading 컴포넌트로 그래프 로딩 표시 (전체 크기 조정)
         dcc.Loading(
             id="loading-graph",
             type="default",  # 로딩 스타일 설정 (스피너)
-            children=dcc.Graph(
-                id='cumulative-return-graph',
-                style={'flex': '1'}  # 그래프는 레이아웃의 나머지 공간을 차지하도록 설정
-            )
+            children=html.Div([
+                dcc.Graph(id='cumulative-return-graph', style={'flex': '1'}),  # 누적 수익률 그래프
+                dcc.Graph(id='signal-graph', style={'flex': '1'})  # Weighted Signal Final 그래프
+            ], style={'display': 'flex', 'flexDirection': 'row'})  # 그래프 두 개를 나란히 표시
         ),
 
         # Loading 컴포넌트로 최적화된 가중치 로딩 표시 (전체 크기 조정)
@@ -158,6 +165,7 @@ def optimize_weights(df_price):
 
 @app.callback(
     [Output('cumulative-return-graph', 'figure'),
+     Output('signal-graph', 'figure'),
      Output('optimal-weights-output', 'children'),
      Output('sma-window', 'value')],
     [Input('stock-dropdown', 'value'),
@@ -175,7 +183,7 @@ def update_graph(stock_code, selected_year):
     df_price = fetch_data(stock_code, start, end)
     
     if df_price is None:
-        return {}, "Error fetching data.", optimal_sma_window
+        return {}, {}, "Error fetching data.", optimal_sma_window
     
     # 'Daily_Return' 계산
     df_price['Daily_Return'] = df_price[stock_code].pct_change().fillna(0)
@@ -227,20 +235,33 @@ def update_graph(stock_code, selected_year):
     df_price['Strategy_Return'] = df_price['Daily_Return'] * df_price['Weighted_Signal_Final']
     df_price['Cum_Return'] = (1 + df_price['Strategy_Return']).cumprod() - 1
 
-    # Plotly 그래프 생성
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_price.index, y=df_price['Cum_Return'], mode='lines', name='Cumulative Return'))
-    fig.update_layout(
+    # Plotly 그래프 생성 - Cumulative Return
+    fig_cumulative = go.Figure()
+    fig_cumulative.add_trace(go.Scatter(x=df_price.index, y=df_price['Cum_Return'], mode='lines', name='Cumulative Return'))
+    fig_cumulative.update_layout(
         title=f'Cumulative Return for {stock_code}',
         xaxis_title='Date',
         yaxis_title='Cumulative Return',
         yaxis={'tickformat': '.0%'}  # Y축을 퍼센트로 표시
     )
 
+    # Plotly 그래프 생성 - Weighted Signal Final
+    fig_signal = go.Figure()
+    fig_signal.add_trace(
+        go.Scatter(
+            x=df_price.index, 
+            y=df_price['Weighted_Signal_Final'], 
+            mode='lines', name='Weighted Signal Final'))
+    fig_signal.update_layout(
+        title=f'Weighted Signal Final for {stock_code}',
+        xaxis_title='Date',
+        yaxis_title='Signal (0 or 1)'
+    )
+
     # 최적화된 가중치 출력
     weights_text = f"Optimal Weights: Bollinger: {optimal_weights[0]:.2f}, LSTM: {optimal_weights[1]:.2f}, SMA: {optimal_weights[2]:.2f}"
 
-    return fig, weights_text, optimal_sma_window
+    return fig_cumulative, fig_signal, weights_text, optimal_sma_window
 
 
 # 애플리케이션 실행
