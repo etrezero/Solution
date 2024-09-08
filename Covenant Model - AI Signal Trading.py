@@ -16,7 +16,7 @@ from scipy.optimize import minimize
 app = dash.Dash(__name__)
 
 # 종목 코드 설정
-available_stocks = {
+stock_code = {
     "252670": "KODEX 200선물인버스2X", 
     "122630": "KODEX 레버리지", 
     "069500": "KODEX 200",
@@ -60,10 +60,13 @@ app.layout = html.Div(
     children=[
         html.H1("Covenant Model - AI Signal Trading", style={'textAlign': 'center'}),  # 중앙 정렬
        
+       # 매수/매도 텍스트 출력 영역 추가
+        html.Div(id='buy-sell-signal', style={'fontSize': 24, 'textAlign': 'center', 'color': 'green'}),
+       
         html.Label("Select Stock:"),
         dcc.Dropdown(
             id='stock-dropdown',
-            options=[{'label': name, 'value': code} for code, name in available_stocks.items()],
+            options=[{'label': name, 'value': code} for code, name in stock_code.items()],
             value='069500',  # 기본 종목
             style={'width': '50%',},
         ),
@@ -152,7 +155,7 @@ def optimize_weights(df_price):
                                        weights[1] * df_price['LSTM_Signal'] +
                                        weights[2] * df_price['SMA_Signal'])
         df_price['Weighted_Signal_Final'] = df_price['Weighted_Signal'].apply(lambda x: 1 if x > 0 else 0)
-        df_price['Strategy_Return'] = df_price['Daily_Return'] * df_price['Weighted_Signal_Final']
+        df_price['Strategy_Return'] = df_price['Daily_Return'] * df_price['Weighted_Signal_Final'].shift(1).fillna(0)
         df_price['Cum_Return'] = (1 + df_price['Strategy_Return']).cumprod() - 1
         return -df_price['Cum_Return'].iloc[-1]  # 누적 수익률의 음수 값을 반환
 
@@ -167,6 +170,7 @@ def optimize_weights(df_price):
     [Output('cumulative-return-graph', 'figure'),
      Output('signal-graph', 'figure'),
      Output('optimal-weights-output', 'children'),
+     Output('buy-sell-signal', 'children'),  # 매수/매도 텍스트 추가
      Output('sma-window', 'value')],
     [Input('stock-dropdown', 'value'),
      Input('year-dropdown', 'value')]
@@ -183,7 +187,7 @@ def update_graph(stock_code, selected_year):
     df_price = fetch_data(stock_code, start, end)
     
     if df_price is None:
-        return {}, {}, "Error fetching data.", optimal_sma_window
+        return {}, {}, "Error fetching data.", "데이터 없음", optimal_sma_window
     
     # 'Daily_Return' 계산
     df_price['Daily_Return'] = df_price[stock_code].pct_change().fillna(0)
@@ -231,13 +235,14 @@ def update_graph(stock_code, selected_year):
     df_price['Weighted_Signal'] = (optimal_weights[0] * df_price['BB_Signal'] +
                                    optimal_weights[1] * df_price['LSTM_Signal'] +
                                    optimal_weights[2] * df_price['SMA_Signal'])
-    print("df_price['Weighted_Signal'] ========", df_price['Weighted_Signal']  )
     
     df_price['Weighted_Signal_Final'] = df_price['Weighted_Signal'].apply(lambda x: 1 if x > 0 else 0)
     df_price['Strategy_Return'] = df_price['Daily_Return'] * df_price['Weighted_Signal_Final']
-    print("df_price['Strategy_Return']========", df_price['Strategy_Return'].iloc[-20:-1]  )
-    
     df_price['Cum_Return'] = (1 + df_price['Strategy_Return']).cumprod() - 1
+    
+    # 마지막 시그널을 기준으로 매수/매도 텍스트 설정
+    last_signal = df_price['Weighted_Signal_Final'].iloc[-1]
+    signal_text = "매수" if last_signal == 1 else "매도"
 
     # Plotly 그래프 생성 - Cumulative Return
     fig_cumulative = go.Figure()
@@ -265,8 +270,7 @@ def update_graph(stock_code, selected_year):
     # 최적화된 가중치 출력
     weights_text = f"Optimal Weights: Bollinger: {optimal_weights[0]:.2f}, LSTM: {optimal_weights[1]:.2f}, SMA: {optimal_weights[2]:.2f}"
 
-    return fig_cumulative, fig_signal, weights_text, optimal_sma_window
-
+    return fig_cumulative, fig_signal, weights_text, signal_text, optimal_sma_window
 
 # 애플리케이션 실행
 if __name__ == '__main__':
