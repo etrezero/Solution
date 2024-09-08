@@ -81,7 +81,7 @@ app.layout = html.Div(
             id='sma-window', 
             type='number', 
             style={'width': '10%',},
-            value=5, min=1, step=1),
+            value=5, min=0, step=5),
         
         # Loading 컴포넌트로 그래프 로딩 표시 (전체 크기 조정)
         dcc.Loading(
