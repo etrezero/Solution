@@ -22,8 +22,10 @@ stock_code = {
     "069500": "KODEX 200",
     "114800": "KODEX 인버스",
     "005930": "삼성전자",
+    "000660": "SK하이닉스",
     "005380": "현대차",
     "207940": "삼성바이오로직스",
+    "035420": "NAVER",
     
     "SOXX": "SOXX",
     "VUG": "VUG",
@@ -60,8 +62,7 @@ def get_optimal_sma_window(stock_code_str, start, end):
 app.layout = html.Div(
     style={'margin': 'auto', 'width': '65%', 'height': '100vh', 'display': 'flex', 'flexDirection': 'column'},
     children=[
-        html.H1("Covenant Model - AI Signal Trading", style={'textAlign': 'center'}),
-        html.Div(id='buy-sell-signal', style={'fontSize': 24, 'textAlign': 'center', 'color': 'green'}),
+        html.H1(f"Covenant AI Signal {datetime.today().strftime('%Y-%m-%d')}", style={'textAlign': 'center'}),        html.Div(id='buy-sell-signal', style={'fontSize': 24, 'textAlign': 'center', 'color': 'green'}),
         html.Label("Select Stock:"),
         dcc.Dropdown(
             id='stock-dropdown',
@@ -158,6 +159,10 @@ def optimize_weights(df_price):
     result = minimize(calc_strategy, initial_weights, method='SLSQP', bounds=bounds, constraints=constraints)
     return result.x
 
+
+
+
+
 @app.callback(
     [Output('cumulative-return-graph', 'figure'),
      Output('signal-graph', 'figure'),
@@ -180,6 +185,7 @@ def update_graph(stock_code, selected_year):
     if df_price is None or df_price.empty:
         return {}, {}, f"Error: No data for {stock_code}", "데이터 없음", None
 
+    # 일간 수익률 계산
     df_price['Daily_Return'] = df_price[stock_code].pct_change().fillna(0)
 
     # Bollinger Bands 시그널
@@ -208,24 +214,39 @@ def update_graph(stock_code, selected_year):
 
     df_price['LSTM_Signal'] = lstm_signals_resized
 
+    # 최적화된 가중치로 최종 시그널 생성 (시그널 값은 1 또는 0)
     optimal_weights = optimize_weights(df_price)
     df_price['Weighted_Signal'] = (optimal_weights[0] * df_price['BB_Signal'] +
                                    optimal_weights[1] * df_price['LSTM_Signal'] +
                                    optimal_weights[2] * df_price['SMA_Signal'])
 
+    # 시그널 값이 1 또는 0으로만 설정되도록 처리
     df_price['Weighted_Signal_Final'] = df_price['Weighted_Signal'].apply(lambda x: 1 if x > 0 else 0)
-    df_price['Strategy_Return'] = df_price['Daily_Return'] * df_price['Weighted_Signal_Final']
 
-    # 선택된 기간 내에서 누적 수익률을 0으로 시작하도록 조정
-    df_price['Cum_Return'] = (1 + df_price['Strategy_Return']).cumprod() - 1
-    df_price['Cum_Return'] -= df_price['Cum_Return'].iloc[0]  # 첫날 수익률을 0으로 설정
+    # 포트폴리오 수익률 계산: 시그널이 1일 때만 일간 수익률 반영, 시그널이 0일 때는 수익률 0
+    # 포트폴리오 수익률이 선택종목의 수익률을 넘을 수 없도록 설정
+    df_price['Portfolio_Return'] = np.where(df_price['Weighted_Signal_Final'] == 1, df_price['Daily_Return'], 0)
+
+    # 선택된 기간 내에서 전략 누적 수익률을 0으로 시작하도록 조정
+    df_price['Portfolio_Cum_Return'] = (1 + df_price['Portfolio_Return']).cumprod() - 1
+    df_price['Portfolio_Cum_Return'] -= df_price['Portfolio_Cum_Return'].iloc[0]  # 첫날 수익률을 0으로 설정
+
+    # 선택된 종목의 누적 수익률 계산
+    df_price['Stock_Cum_Return'] = (1 + df_price['Daily_Return']).cumprod() - 1
+    df_price['Stock_Cum_Return'] -= df_price['Stock_Cum_Return'].iloc[0]  # 첫날 수익률을 0으로 설정
 
     last_signal = df_price['Weighted_Signal_Final'].iloc[-1]
     signal_text = "매수" if last_signal == 1 else "매도"
 
-    # 누적 수익률 그래프
+    # 누적 수익률 그래프 (전략과 선택한 종목의 누적 수익률을 함께 표시)
     fig_cumulative = go.Figure()
-    fig_cumulative.add_trace(go.Scatter(x=df_price.index, y=df_price['Cum_Return'], mode='lines', name='Cumulative Return'))
+
+    # 포트폴리오 누적 수익률
+    fig_cumulative.add_trace(go.Scatter(x=df_price.index, y=df_price['Portfolio_Cum_Return'], mode='lines', name='Covenant Portfolio'))
+
+    # 선택한 종목의 누적 수익률
+    fig_cumulative.add_trace(go.Scatter(x=df_price.index, y=df_price['Stock_Cum_Return'], mode='lines', name=f'{stock_code}'))
+
     fig_cumulative.update_layout(
         title=f'Cumulative Return for {stock_code} ({selected_year})',
         xaxis_title='Date',
