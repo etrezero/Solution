@@ -12,8 +12,11 @@ from keras.layers import LSTM, Dense
 from pykrx import stock as pykrx
 from scipy.optimize import minimize
 
+
+
 # Dash 애플리케이션 생성
 app = dash.Dash(__name__)
+
 
 # 종목 코드 설정
 stock_code = {
@@ -26,12 +29,16 @@ stock_code = {
     "005380": "현대차",
     "207940": "삼성바이오로직스",
     "035420": "NAVER",
+    "101360": "에코앤드림",
+    "044450": "KSS해운",
+    "039030": "이오테크닉스",
+    "007660": "이수페타시스",
     
-    "SOXX": "SOXX",
-    "VUG": "VUG",
-    "SPY": "SPY",
-    "MAGS": "MAGS",
 }
+
+
+
+
 
 # 연도 선택을 위한 Dropdown 옵션 생성
 current_year = datetime.today().year
@@ -66,7 +73,9 @@ app.layout = html.Div(
         html.Label("Select Stock:"),
         dcc.Dropdown(
             id='stock-dropdown',
-            options=[{'label': name, 'value': code} for code, name in stock_code.items()],
+            options = [{'label': name, 'value': code} 
+                       for code, name in stock_code.items()] 
+                       if stock_code is not None else [],
             value='069500',
             style={'width': '50%'},
         ),
