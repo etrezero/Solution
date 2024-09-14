@@ -25,8 +25,12 @@ app = dash.Dash(__name__)
 
 # 종목 코드 설정
 stock_code = {
+    "069500": "KODEX 200",
+    "114800": "KODEX 인버스",
+    
     "252670": "KODEX 200선물인버스2X", 
     "122630": "KODEX 레버리지", 
+    
     "SOXX": "SOXX",
     "SOXL": "SOXL", 
     "SOXS": "SOXS", 
@@ -36,8 +40,6 @@ stock_code = {
     "TMV": "TMV",
 
 
-    "069500": "KODEX 200",
-    "114800": "KODEX 인버스",
     "005930": "삼성전자",
     "000660": "SK하이닉스",
     "005380": "현대차",
@@ -72,7 +74,7 @@ def calculate_volatility(df_price, stock_code_str):
 
 # Layout 정의 (Dropdown 및 Loading 컴포넌트 추가)
 app.layout = html.Div(
-    style={'margin': 'auto', 'width': '65%', 'height': '100vh', 'display': 'flex', 'flexDirection': 'column'},
+    style={'margin': 'auto', 'width': '60%', 'height': '100vh', 'display': 'flex', 'flexDirection': 'column'},
     children=[
         html.H1(f"Covenant AI Signal {datetime.today().strftime('%Y-%m-%d')}", style={'textAlign': 'center'}),        
        
@@ -102,11 +104,13 @@ app.layout = html.Div(
             children=html.Div([
                 html.Div([
                     dcc.Graph(id='cumulative-return-graph', style={'flex': '1'}),
-                    dcc.Graph(id='signal-graph', style={'flex': '1'}),
-                ], style={'display': 'flex', 'flexDirection': 'row'}),
+                ], style={'width': '70%','margin' : 'auto', 'display': 'flex', 'flexDirection': 'row'}),
+                
                 html.Div([
+                    dcc.Graph(id='signal-graph', style={'flex': '1'}),
                     dcc.Graph(id='anomalies-graph', style={'flex': '1'})
-                ], style={'display': 'flex', 'flexDirection': 'row'})  # This ensures anomalies-graph is on a new line
+                ], style={'display': 'flex', 'flexDirection': 'row'}),
+                
             ])
         ),
 
@@ -205,9 +209,9 @@ def detect_anomalies_isolation_forest(df, contamination=0.5):
 # 최적화 함수 정의
 def optimize_weights(df_price):
     def calc_strategy(weights):
-        df_price['Weighted_Signal'] = (weights[0] * df_price['BB_Signal'] +
-                                       weights[1] * df_price['LSTM_Signal'] +
-                                       weights[2] * df_price['SMA_Signal'])
+        df_price['Weighted_Signal'] = (0.34 * df_price['BB_Signal'] +
+                                       0.33 * df_price['LSTM_Signal'] +
+                                       0.33 * df_price['SMA_Signal'])
         df_price['Weighted_Signal_Final'] = df_price['Weighted_Signal'].apply(lambda x: 1 if x > 0 else 0)
         df_price['Strategy_Return'] = df_price['Daily_Return'] * df_price['Weighted_Signal_Final'].shift(1).fillna(0)
         df_price['Cum_Return'] = (1 + df_price['Strategy_Return']).cumprod() - 1
@@ -288,9 +292,9 @@ def update_graph(stock_code, selected_year):
 
     # 최적화된 가중치로 최종 시그널 생성 (시그널 값은 1 또는 0)
     optimal_weights = optimize_weights(df_price)
-    df_price['Weighted_Signal'] = (optimal_weights[0] * df_price['BB_Signal'] +
-                                   optimal_weights[1] * df_price['LSTM_Signal'] +
-                                   optimal_weights[2] * df_price['SMA_Signal'])
+    df_price['Weighted_Signal'] = (0.34 * df_price['BB_Signal'] +
+                                   0.33 * df_price['LSTM_Signal'] +
+                                   0.33 * df_price['SMA_Signal'])
 
     # 시그널 값이 1 또는 0으로만 설정되도록 처리
     df_price['Weighted_Signal_Final'] = df_price['Weighted_Signal'].apply(lambda x: 1 if x > 0 else 0)
@@ -325,7 +329,7 @@ def update_graph(stock_code, selected_year):
 
 
     fig_cumulative.update_layout(
-        title=f'Cumulative Return for {stock_code} ({selected_year}) with Anomalies',
+        title=f'Cumulative Return for {stock_code} (From {selected_year})',
         xaxis_title='Date',
         yaxis_title='Cumulative Return',
         yaxis={'tickformat': '.0%'},
@@ -346,7 +350,7 @@ def update_graph(stock_code, selected_year):
     )
     
     fig_signal.update_layout(
-        title=f'Signal for {stock_code} ({selected_year})',
+        title=f'Signal for {stock_code} (From {selected_year})',
         xaxis_title='Date',
         yaxis_title='Signal (0 or 1)',
         xaxis=dict(range=[df_price.index.min(), df_price.index.max()])  # 시작과 끝 날짜로 x-axis 범위 제한
@@ -363,13 +367,30 @@ def update_graph(stock_code, selected_year):
     fig_anomalies = go.Figure()
 
     # 종목 가격 그래프 (Closing Price)
-    fig_anomalies.add_trace(go.Scatter(x=df_price.index, y=df_price[stock_code], mode='lines', name='Closing Price', line=dict(color='blue')))
+    fig_anomalies.add_trace(
+        go.Scatter(
+            x=df_price.index, 
+            y=df_price[stock_code], 
+            mode='lines', 
+            name='Price', 
+            line=dict(color='blue')
+        )
+    )
+    
 
     # 이상치 표시 (Anomalies)
-    fig_anomalies.add_trace(go.Scatter(x=anomalies.index, y=anomalies[stock_code], mode='markers', name='Anomalies', marker=dict(color='red', size=10)))
+    fig_anomalies.add_trace(
+        go.Scatter(
+            x=anomalies.index, 
+            y=anomalies[stock_code], 
+            mode='markers', 
+            name='Anomalies', 
+            marker=dict(color='red', size=10)
+        )
+    )
 
     fig_anomalies.update_layout(
-        title=f'{stock_code} Price with Anomalies ({selected_year})',
+        title=f'{stock_code} Anomalies Detection (From {selected_year})',
         xaxis_title='Date',
         yaxis_title='Price',
         yaxis={'tickformat': ',.0f'},  # y축 포맷 설정
@@ -378,7 +399,7 @@ def update_graph(stock_code, selected_year):
 
 
 
-    weights_text = f"Optimal Weights: Bollinger: {optimal_weights[0]:.2f}, LSTM: {optimal_weights[1]:.2f}, SMA: {optimal_weights[2]:.2f}"
+    weights_text = f"Optimal Weights: Bollinger: 34%, LSTM: 33%, SMA: 33%"
 
 
 
