@@ -92,19 +92,22 @@ app.layout = html.Div(
             id='year-dropdown',
             options=year_options,
             value=current_year,
-            style={'width': '40%'},
+            style={'width': '50%'},
         ),
     
-        
-
+            
         dcc.Loading(
             id="loading-graph",
             type="default",
             children=html.Div([
-                dcc.Graph(id='cumulative-return-graph', style={'flex': '1'}),
-                dcc.Graph(id='signal-graph', style={'flex': '1'}),
-                dcc.Graph(id='anomalies-graph', style={'flex': '1'}), 
-            ], style={'display': 'flex', 'flexDirection': 'row'})
+                html.Div([
+                    dcc.Graph(id='cumulative-return-graph', style={'flex': '1'}),
+                    dcc.Graph(id='signal-graph', style={'flex': '1'}),
+                ], style={'display': 'flex', 'flexDirection': 'row'}),
+                html.Div([
+                    dcc.Graph(id='anomalies-graph', style={'flex': '1'})
+                ], style={'display': 'flex', 'flexDirection': 'row'})  # This ensures anomalies-graph is on a new line
+            ])
         ),
 
 
@@ -248,7 +251,7 @@ def detect_anomalies_isolation_forest(df, column_name, contamination=0.01):
 def update_graph(stock_code, selected_year):
     # 시작 및 끝 날짜 설정
     start = datetime(selected_year, 1, 1).strftime('%Y-%m-%d')
-    end = datetime(selected_year, 12, 31).strftime('%Y-%m-%d')
+    end = datetime.today().strftime('%Y-%m-%d')
 
     df_price = fetch_data(stock_code, start, end)
     if df_price is None or df_price.empty:
@@ -274,7 +277,7 @@ def update_graph(stock_code, selected_year):
     # LSTM 시그널 생성
     X, y, scaler = create_lstm_data(df_price, stock_code)
     lstm_model = create_lstm_model(X.shape)
-    lstm_model.fit(X, y, epochs=10, batch_size=32, verbose=0)
+    lstm_model.fit(X, y, epochs=10, batch_size=5, verbose=0)
 
     predicted = lstm_model.predict(X)
     predicted = scaler.inverse_transform(predicted)
