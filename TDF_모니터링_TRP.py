@@ -936,7 +936,32 @@ def generate_pivot_table(n_submit, selected_fund_cd, data, df_price):
 
 
 
-        # 투자비중 파이 그래프
+
+
+
+        # 투자비중 주식 자산구분 파이 그래프
+        dcc.Graph(
+            figure=go.Figure(
+                data=[
+                    go.Pie(
+                        labels=W_주식.columns.map(lambda col: item_dict.get(col, col)),  # item_dict로 매핑
+                        values=W_주식.iloc[-1],
+                        hole=0.3,  # 도넛 모양
+                        textinfo="label+percent",  # 항목 이름과 퍼센트를 그래프에 직접 표시
+                        textposition="outside"  # 텍스트를 파이 외부에 표시
+                    )
+                ],
+                layout=go.Layout(
+                    title=f"{selected_fund_cd} 주식 자산구분 투자비중",
+                    showlegend=False  # 레전드를 숨김
+                )
+            )
+        ),
+
+
+
+
+        # 투자비중 개별주식 펀드 파이 그래프
         dcc.Graph(
             figure=go.Figure(
                 data=[
@@ -951,7 +976,7 @@ def generate_pivot_table(n_submit, selected_fund_cd, data, df_price):
                     )
                 ],
                 layout=go.Layout(
-                    title=f"{selected_fund_cd} 주식 투자비중",
+                    title=f"{selected_fund_cd} 주식 개별펀드 투자비중",
                     showlegend=False  # 레전드를 숨김
                 )
             )
@@ -1002,7 +1027,31 @@ def generate_pivot_table(n_submit, selected_fund_cd, data, df_price):
 
 
 
-        # 투자비중 채권 파이 그래프
+
+        # 투자비중 채권 자산구분 파이 그래프
+        dcc.Graph(
+            figure=go.Figure(
+                data=[
+                    go.Pie(
+                        labels=W_채권.columns.map(lambda col: item_dict.get(col, col)),  # item_dict로 매핑
+                        values=W_채권.iloc[-1],
+                        hole=0.3,  # 도넛 모양
+                        textinfo="label+percent",  # 항목 이름과 퍼센트를 그래프에 직접 표시
+                        textposition="outside"  # 텍스트를 파이 외부에 표시
+                    )
+                ],
+                layout=go.Layout(
+                    title=f"{selected_fund_cd} 채권 자산구분 투자비중",
+                    showlegend=False  # 레전드를 숨김
+                )
+            )
+        ),
+
+
+
+
+
+        # 투자비중 개별 채권 파이 그래프
         dcc.Graph(
             figure=go.Figure(
                 data=[
@@ -1017,7 +1066,7 @@ def generate_pivot_table(n_submit, selected_fund_cd, data, df_price):
                     )
                 ],
                 layout=go.Layout(
-                    title=f"{selected_fund_cd} 채권 투자비중",
+                    title=f"{selected_fund_cd} 개별 채권펀드 투자비중",
                     showlegend=False  # 레전드를 숨김
                 )
             )
