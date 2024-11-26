@@ -92,11 +92,12 @@ def Func(code, start, end, batch_size=10):
     return df_price
 
 
-start = (datetime.today() - relativedelta(years=10)).strftime('%Y-%m-%d')
+start = (datetime.today() - relativedelta(years=1)).strftime('%Y-%m-%d')
 end = (datetime.today() - timedelta(1)).strftime('%Y-%m-%d')
 
 
-df_price = Func('069500.KS', start, end)
+code = ['VUG']
+df_price = Func(code, start, end)
 
 print(df_price)
 
@@ -106,10 +107,10 @@ print(df_price)
     
 
 # DTW 기반 국면 분석 함수
-def dynamic_time_warping_analysis(stock_data, n_clusters=3):
+def DTW(df_price, n_clusters=3):
     # 주가 데이터를 정규화하여 DTW에 적용
     scaler = StandardScaler()
-    scaled_data = scaler.fit_transform(stock_data)
+    scaled_data = scaler.fit_transform(df_price)
 
     # DTW 기반 클러스터링
     model = TimeSeriesKMeans(n_clusters=n_clusters, metric="dtw", verbose=True)
@@ -120,12 +121,12 @@ def dynamic_time_warping_analysis(stock_data, n_clusters=3):
 
 
 # 시계열 데이터 시각화
-def plot_stock_data(stock_data, labels):
+def plot_stock_data(code, df_price, labels):
     plt.figure(figsize=(10, 6))
 
     for cluster_id in np.unique(labels):
-        cluster_data = stock_data[labels == cluster_id]
-        plt.plot(cluster_data.index, cluster_data.values, label=f'Cluster {cluster_id}')
+        cluster_data = df_price[labels == cluster_id]
+        plt.plot(cluster_data.index, cluster_data.values, label=f'{code} Cluster{cluster_id}')
 
     plt.title('Dynamic Time Warping Clustering')
     plt.xlabel('Date')
@@ -137,10 +138,10 @@ def plot_stock_data(stock_data, labels):
 
 
 # # DTW 기반 국면 분석
-labels = dynamic_time_warping_analysis(df_price, n_clusters=4)
+labels = DTW(df_price, n_clusters=4)
 
 # 분석 결과 시각화
-plot_stock_data(df_price, labels)
+plot_stock_data(code, df_price, labels)
 
 # 국면별 주요 통계 출력
 for cluster_id in np.unique(labels):
