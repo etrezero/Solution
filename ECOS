@@ -1,0 +1,115 @@
+import pandas as pd
+import numpy as np
+import openpyxl
+import dash
+from dash import Dash, dcc, html, dash_table
+from dash.dependencies import Input, Output
+import plotly.graph_objects as go
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+import requests
+
+import pandas as pd
+import requests
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+
+
+# ECOS API 키 설정
+ECOS_API_KEY = ''
+
+
+# ECOS API 호출 함수
+def fetch_ecos_data(stat_code, term, item_code, start, end):
+    """
+    한국은행 ECOS API를 사용하여 데이터 가져오기
+    """
+    # term에 따른 날짜 형식 변환
+    if term == 'A':
+        start_date = start.strftime('%Y')
+        end_date = end.strftime('%Y')
+    elif term == 'Q':
+        start_date = start.strftime('%Y') + 'Q' + str((start.month - 1) // 3 + 1)
+        end_date = end.strftime('%Y') + 'Q' + str((end.month - 1) // 3 + 1)
+    elif term == 'M':
+        start_date = start.strftime('%Y%m')
+        end_date = end.strftime('%Y%m')
+    elif term == 'D':
+        start_date = start.strftime('%Y%m%d')
+        end_date = end.strftime('%Y%m%d')
+    else:
+        raise ValueError("Invalid term. Use 'A', 'Q', 'M', or 'D'.")
+
+    # API 호출 URL 구성
+    url = (
+        f"http://ecos.bok.or.kr/api/StatisticSearch/"
+        f"{ECOS_API_KEY}/json/kr/1/100/"
+        f"{stat_code}/{term}/{start_date}/{end_date}/{item_code}"
+    )
+    
+    try:
+        # SSL 인증서를 무시하기 위해 verify=False 추가
+        response = requests.get(url, verify=False)
+        response.raise_for_status()
+        data = response.json()
+        
+        if 'StatisticSearch' in data:
+            rows = data['StatisticSearch']['row']
+            df = pd.DataFrame(rows)
+            df['TIME'] = pd.to_datetime(df['TIME'])
+            df.set_index('TIME', inplace=True)
+            df = df[['DATA_VALUE']].astype(float)
+            return df
+        else:
+            print("No data found in response.")
+            return None
+    except Exception as e:
+        print(f"Error fetching ECOS data: {e}")
+        return None
+
+
+# 여러 지표 데이터를 병합하는 함수 수정
+def fetch_and_merge_ecos_data(item_dict, term, start, end):
+    merged_df = pd.DataFrame()
+
+    for stat_code, items in item_dict.items():
+        for item_code, column_name in items:
+            df = fetch_ecos_data(stat_code, term, item_code, start, end)
+            if df is not None:
+                df.rename(columns={'DATA_VALUE': column_name}, inplace=True)
+                if merged_df.empty:
+                    merged_df = df
+                else:
+                    merged_df = pd.merge(merged_df, df, left_index=True, right_index=True, how='outer')
+    
+    return merged_df
+
+
+# 테스트 데이터 가져오기
+if __name__ == "__main__":
+
+
+    item_dict = {
+        '902Y015': [
+                    ('AUS', '경제성장률 (한국)'),
+                    ('USA', '경제성장률 (미국)'),
+                ],
+    }
+
+    # Term 정의 (A: 연간, Q: 분기, M: 월간, D: 일간)
+    term = 'Q'
+
+    # 시작과 종료 날짜 설정
+    start = datetime.today() - relativedelta(years=10)
+    end = datetime.today() - relativedelta(months=1)
+
+    # 데이터 병합
+    merged_data = fetch_and_merge_ecos_data(item_dict, term, start, end)
+
+    if merged_data is not None:
+        print(merged_data)
+    else:
+        print("No data retrieved.")
+
+
