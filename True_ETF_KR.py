@@ -15,6 +15,19 @@ import concurrent.futures
 from pykrx import stock as pykrx
 from scipy.optimize import minimize
 
+import yfinance as yf
+import pickle
+import os
+
+
+
+
+
+
+
+
+
+
 
 # config.yaml 파일의 경로 설정
 config_path = r'C:\Covenant\config.yaml'
@@ -35,7 +48,11 @@ APP_SECRET = config['true_api']['APP_SECRET']
 CANO = config['true_api']['CANO']
 ACNT_PRDT_CD = config['true_api']['ACNT_PRDT_CD']
 
-def get_access_token():
+# 토큰 캐시 파일 경로
+token_cache_path = r'C:\Covenant\token_cache.json'
+
+def get_new_token():
+    """새로운 토큰을 발급받아 저장"""
     headers = {"content-type": "application/json"}
     body = {
         "grant_type": "client_credentials",
@@ -43,18 +60,57 @@ def get_access_token():
         "appsecret": APP_SECRET,
     }
     url = f"{URL_BASE}/oauth2/tokenP"
-    response = requests.post(url, headers=headers, data=json.dumps(body), verify=certifi.where())
-    return response.json()["access_token"]
+    response = requests.post(url, headers=headers, data=json.dumps(body), verify=False)
 
-verify=False
+    if response.status_code == 200:
+        token = response.json()["access_token"]
+        # 매일 밤 23:59:59를 만료 시간으로 설정
+        expiry_time = datetime.combine(datetime.now().date() + timedelta(days=1), datetime.max.time())
+        expiry_timestamp = int(expiry_time.timestamp())
+        # 캐시에 저장
+        cache_data = {"token": token, "expiry": expiry_timestamp}
+        with open(token_cache_path, 'w') as f:
+            json.dump(cache_data, f)
+        print("🔄 새 토큰 발급 완료!")
+        return token
+    else:
+        raise Exception("⚠️ 토큰 발급 실패: ", response.json())
 
-# 현재 포트폴리오를 조회하는 함수
+
+def get_or_refresh_token():
+    """토큰을 가져오거나 필요시 새로 발급"""
+    # 캐시 파일이 없으면 새로 생성
+    if not os.path.exists(token_cache_path):
+        print("⚠️ 토큰 캐시 파일이 없어서 새로 발급합니다.")
+        return get_new_token()
+
+    # 캐시 파일이 있는 경우
+    with open(token_cache_path, 'r') as f:
+        cache_data = json.load(f)
+    
+    token = cache_data.get("token")
+    expiry = cache_data.get("expiry")
+
+    # 현재 시간(초)과 만료 시간 비교
+    now_timestamp = int(datetime.now().timestamp())
+    if now_timestamp >= expiry:
+        print("🔔 토큰이 만료되어 새로 발급합니다.")
+        return get_new_token()
+    else:
+        print("✅ 캐시된 토큰 사용 중.")
+        return token
+
+
 def get_current_portfolio(token):
+    """현재 포트폴리오 조회"""
+    token = get_or_refresh_token()
+
     headers = {
         "content-type": "application/json; charset=utf-8",
         "authorization": f"Bearer {token}",
         "appKey": APP_KEY,
         "appSecret": APP_SECRET,
+        "tr_id": "VTTC8434R",  # 포트폴리오 조회용 ID (API 문서 참조)
     }
     url = f"{URL_BASE}/uapi/domestic-stock/v1/trading/inquire-balance"
     params = {
@@ -70,8 +126,33 @@ def get_current_portfolio(token):
         "CTX_AREA_FK100": "",
         "CTX_AREA_NK100": "",
     }
-    response = requests.get(url, headers=headers, params=params)
-    return response.json()
+
+    # API 요청 및 에러 핸들링
+    try:
+        response = requests.get(url, headers=headers, params=params, verify=False)
+        data = response.json()
+        print(f"🔍 포트폴리오 응답 데이터: {json.dumps(data, indent=2, ensure_ascii=False)}")
+
+        # 에러 코드 처리
+        if data.get('rt_cd') != '0':
+            print(f"⚠️ API 에러 발생: {data.get('msg1')}")
+            return {}
+
+        # 포트폴리오 데이터 추출
+        portfolio = {
+            item['pdno']: {'qty': int(item['hldg_qty']), 'price': float(item['pchs_avg_pric'])}
+            for item in data.get('output1', [])
+        }
+        return portfolio
+
+    except Exception as e:
+        print(f"❌ API 요청 실패: {e}")
+        return {}
+    
+
+
+
+
 
 # 매수 주문 함수
 def send_buy_order(token, ticker, price, qty):
@@ -115,68 +196,113 @@ def send_sell_order(token, ticker, price, qty):
     response = requests.post(url, headers=headers, data=json.dumps(data))
     return response.json()
 
-# 포트폴리오 리밸런싱 함수
+
+
 def rebalance_portfolio(cum_port, optimal_df, token):
     current_portfolio = get_current_portfolio(token)
-    
+
+    # 포트폴리오 비어있으면 초기 자본 설정
+    total_value = sum([p['qty'] * p['price'] for p in current_portfolio.values()]) if current_portfolio else 1_000_000
+
     for idx, row in optimal_df.iterrows():
         ticker = row['종목명']
         target_weight = row['투자비중']
-        
-        # 현재 종목이 포트폴리오에 있으면 비중을 조정, 없으면 매수
-        if ticker in current_portfolio:
-            current_qty = current_portfolio[ticker]['qty']
-            current_price = current_portfolio[ticker]['price']
-            current_value = current_qty * current_price
-            total_value = sum([p['qty'] * p['price'] for p in current_portfolio.values()])
-            current_weight = current_value / total_value
-            
-            if current_weight < target_weight:
-                qty_to_buy = int(((target_weight - current_weight) * total_value) / current_price)
-                send_buy_order(token, ticker, current_price, qty_to_buy)
-            elif current_weight > target_weight:
-                qty_to_sell = int(((current_weight - target_weight) * total_value) / current_price)
-                send_sell_order(token, ticker, current_price, qty_to_sell)
-        else:
-            # 종목이 포트폴리오에 없으면 매수
-            current_price = fdr.DataReader(ticker, start=datetime.today().strftime('%Y-%m-%d'), end=datetime.today().strftime('%Y-%m-%d'))['Close'].iloc[0]
-            qty_to_buy = int((target_weight * sum([p['qty'] * p['price'] for p in current_portfolio.values()])) / current_price)
-            send_buy_order(token, ticker, current_price, qty_to_buy)
-    
-    # 포트폴리오에 있지만 optimal_df에 없는 종목은 매도
-    for ticker in current_portfolio:
-        if ticker not in optimal_df['종목명'].values:
-            send_sell_order(token, ticker, current_portfolio[ticker]['price'], current_portfolio[ticker]['qty'])
 
-# 데이터를 가져오는 함수
+        # 현재 가격 가져오기
+        try:
+            df_temp = fdr.DataReader(ticker, start=datetime.today().strftime('%Y-%m-%d'), end=datetime.today().strftime('%Y-%m-%d'))
+            if df_temp.empty:
+                print(f"⚠️ 데이터 없음: {ticker}")
+                continue
+
+            # Series → float 변환
+            current_price = float(df_temp['Close'].iloc[0])
+            print(f"🔍 {ticker} 가격: {current_price}")
+
+        except Exception as e:
+            print(f"❌ 데이터 조회 실패: {e}")
+            continue
+
+        # 매수 수량 계산
+        if current_price > 0:
+            qty_to_buy = int((target_weight * total_value) / current_price)
+        else:
+            qty_to_buy = 0
+
+        # 매수 주문 실행
+        if qty_to_buy > 0:
+            order_response = send_buy_order(token, ticker, current_price, qty_to_buy)
+            print(f"✅ 매수 주문: {ticker}, 수량: {qty_to_buy}, 응답: {order_response}")
+
+    print("🎯 포트폴리오 리밸런싱 완료.")
+
+
+
+
+# 캐시 경로 및 만료 시간 설정
+cache_price = r'C:\Covenant\data\True_ETF.pkl'
+cache_expiry = timedelta(minutes=1)
+# cache_expiry = timedelta(days=1)
+
+
 def fetch_data(code, start, end):
     try:
-        if isinstance(code, int) or code.isdigit() or code.endswith(".KS"):
-            if isinstance(code, int):
-                code = str(code)
-            if code.endswith(".KS"):
-                code = code.replace(".KS", "")
-            ETF_price = pykrx.get_market_ohlcv_by_date(start, end, code)
-            if '종가' in ETF_price.columns:
-                ETF_price = ETF_price['종가'].rename(code)
-            else:
-                raise ValueError(f"{code}: '종가' column not found in pykrx data.")
+        # code가 정수형이면 문자열로 변환
+        code = str(code)
+
+        if isinstance(code, str) and code.isdigit():  # 숫자 코드일 경우
+            if len(code) == 5:
+                code = '0' + code  # 5자리 코드 앞에 0을 추가
+            df_price = pykrx.get_market_ohlcv_by_date(start, end, code)['종가']
         else:
-            ETF_price = fdr.DataReader(code, start, end)['Close'].rename(code)
-        return ETF_price
+            session = requests.Session()
+            session.verify = False  # SSL 인증서 검증 비활성화
+            yf_data = yf.Ticker(code, session=session)
+            df_price = yf_data.history(start=start, end=end)['Close']
+            df_price = df_price.tz_localize(None)  # 타임존 제거
+
+        df_price = pd.DataFrame(df_price)
+        df_price.columns = [code]
+        df_price.index = pd.to_datetime(df_price.index).strftime('%Y-%m-%d')  # 인덱스를 문자열 형식으로 변환
+        df_price = df_price.sort_index(ascending=True)
+        
+        return df_price
+    
     except Exception as e:
         print(f"Error fetching data for {code}: {e}")
         return None
 
-def FDR(code, start, end):
+
+
+
+# 캐시를 통한 데이터 불러오기
+def Func(code, start, end, batch_size=10):
+    if os.path.exists(cache_price):
+        cache_mtime = datetime.fromtimestamp(os.path.getmtime(cache_price))
+        if datetime.now() - cache_mtime < cache_expiry:
+            with open(cache_price, 'rb') as f:
+                print("Loading cache========================")
+                return pickle.load(f)
+
     data_frames = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(fetch_data, c, start, end): c for c in code}
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            if result is not None:
-                data_frames.append(result)
-    return pd.concat(data_frames, axis=1) if data_frames else pd.DataFrame()
+    for i in range(0, len(code), batch_size):
+        code_batch = code[i:i + batch_size]
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {executor.submit(fetch_data, c, start, end): c for c in code_batch}
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    data_frames.append(result)
+
+    price_data = pd.concat(data_frames, axis=1) if data_frames else pd.DataFrame()
+
+    with open(cache_price, 'wb') as f:
+        pickle.dump(price_data, f)
+        print("Data cached================================")
+
+    return price_data
+
+
 
 
 
@@ -194,20 +320,22 @@ start = (datetime.today() - relativedelta(years=1)).strftime('%Y-%m-%d')
 end = (datetime.today() - timedelta(days=0)).strftime('%Y-%m-%d')
 
 #=========================================================
-# ETF_price = FDR(code, start, end)
+# ETF_price = Func(code, start, end, batch_size=10)
+# print("ETF_price================", ETF_price)
 
-#  파일로 저장
+
+# #  파일로 저장
 # Path_price = r'C:\Covenant\data\ETF_KR_price.pkl'
 # ETF_price.to_pickle(Path_price)
+
 #=========================================================
 
 
-
-# pkl 파일을 읽어서 ETF_price 데이터프레임으로 지정
+# # pkl 파일을 읽어서 ETF_price 데이터프레임으로 지정
 Path_price = r'C:\Covenant\data\ETF_KR_price.pkl'
 ETF_price = pd.read_pickle(Path_price)
 
-#======================================================
+# #======================================================
 
 
 # code_dict를 데이터프레임으로 변환
@@ -234,9 +362,9 @@ ETF_price = ETF_price[
 
 ETF_price = ETF_price.bfill().fillna(0)
 ETF_R = ETF_price.pct_change(periods=1)
+ETF_R.replace([float('inf'), float('-inf')], 0, inplace=True)
 df_cum = (1 + ETF_R).cumprod() - 1
-df_cum.replace([float('inf'), float('-inf')], 0, inplace=True)
-df_cum.iloc[0] = 0
+
 
 RR_3M = ETF_price.pct_change(periods=60)
 RR_3M.replace([float('inf'), float('-inf')], 0, inplace=True)
@@ -261,9 +389,8 @@ vol_low = vol_low.index.tolist()
 
 cum_50 = cum_50[vol_low]
 
-# 마지막 숫자 0인 열 드롭
-cols_drop = cum_50.columns[cum_50.iloc[-1] == 0]
-cum_50 = cum_50.drop(columns=cols_drop)
+
+
 
 def calculate_MDD(price):
     roll_max = price.cummax()
@@ -394,6 +521,6 @@ app.layout = html.Div(
 )
 
 if __name__ == '__main__':
-    token = get_access_token()
+    token = get_or_refresh_token()
     rebalance_portfolio(cum_port, optimal_df, token)
     app.run_server(debug=False, host='0.0.0.0')
