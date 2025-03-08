@@ -667,93 +667,13 @@ if __name__ == "__main__":
 
 
 #   ==================================================
-# 🚀 Dash 애플리케이션이 실행되었습니다!
-# 🖥️ 로컬 접속 URL: http://192.168.219.100
-# 🌐 외부 접속 URL: http://180.228.142.27
 
 
 # http://covenantseo.ddns.net
 # 가비아 DNS설정에서 covenant.한국으로 포워딩 했음
-# https://dns.gabia.com/dns/internals/total_set
+
 
 # ==================================================
 
 
 
-
-
-    # www.covenant.xn--3e0b707e
-    
-    
-    
-    # ns.gabia.co.kr   43.201.170.100
-    
-    
-# Dash 앱 실행
-# cd D:\code
-# docker compose up -d
-
-# 단순 코드 변경 시: docker compose up -d --build
-# 환경 설정 변경 시: docker compose down && docker compose up -d --build
-
-# docker ps -a
-
-# 활성 연결상태
-# netstat -an
-
-
-
-
-
-
-# docker compose up -d
-# docker compose up -d --build
-# docker compose down && docker compose up -d --build
-# docker ps -a
-# netstat -an
-
-
-
-
-
-# D:\code>ipconfig /all
-
-# Windows IP 구성
-
-#    호스트 이름 . . . . . . . . : DESKTOP-4GSE45H
-#    주 DNS 접미사 . . . . . . . :
-#    노드 유형 . . . . . . . . . : 혼성
-#    IP 라우팅 사용. . . . . . . : 아니요
-#    WINS 프록시 사용. . . . . . : 아니요
-
-# 이더넷 어댑터 이더넷:
-
-#    연결별 DNS 접미사. . . . :
-#    설명. . . . . . . . . . . . : Realtek PCIe GbE Family Controller
-#    물리적 주소 . . . . . . . . : D4-5D-64-55-4A-4C
-#    DHCP 사용 . . . . . . . . . : 예
-#    자동 구성 사용. . . . . . . : 예
-#    링크-로컬 IPv6 주소 . . . . : fe80::e10e:f733:e98b:e26d%2(기본 설정)
-#    IPv4 주소 . . . . . . . . . : 192.168.219.100(기본 설정)
-#    서브넷 마스크 . . . . . . . : 255.255.255.0
-#    임대 시작 날짜. . . . . . . : 2025년 3월 6일 목요일 오후 8:50:19
-#    임대 만료 날짜. . . . . . . : 2025년 3월 9일 일요일 오전 10:55:51
-#    기본 게이트웨이 . . . . . . : 192.168.219.1
-#    DHCP 서버 . . . . . . . . . : 192.168.219.1
-#    DHCPv6 IAID . . . . . . . . : 47471972
-#    DHCPv6 클라이언트 DUID. . . : 00-01-00-01-2D-F1-56-B9-D4-5D-64-55-4A-4C
-#    DNS 서버. . . . . . . . . . : 61.41.153.2
-#                                  1.214.68.2
-#    Tcpip를 통한 NetBIOS. . . . : 사용
-
-
-# 외부 공용IP : 180.228.142.27
-
-# 이더넷 어댑터 이더넷 2:
-
-#    미디어 상태 . . . . . . . . : 미디어 연결 끊김
-#    연결별 DNS 접미사. . . . :
-#    설명. . . . . . . . . . . . : SECUI Virtual Network Driver
-#    물리적 주소 . . . . . . . . : 00-FF-A0-35-F6-DB
-#    DHCP 사용 . . . . . . . . . : 예
-#    자동 구성 사용. . . . . . . : 예
