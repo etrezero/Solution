@@ -1,34 +1,54 @@
-import openai
+from flask import Flask, request, jsonify, send_from_directory, render_template
+from pathlib import Path
 import traceback
-from flask import Flask, request, jsonify
+import openai
+import yaml
 import io
 import sys
-import yaml
-import socket
-import requests
-import re
-import subprocess
+import os
 import json
-from pathlib import Path
+import uuid
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.io as pio
+import socket
+import re
+import requests
+import random
+import numpy as np
+import yfinance
+import requests
 
 
 
 
+
+# 앱 초기화
 app = Flask(__name__)
 
-# 🔐 config.yaml에서 OpenAI API 키 불러오기
-def load_openai_key():
-    with open(r"C:\Covenant\config.yaml", "r", encoding='utf-8') as file:
-        config = yaml.safe_load(file)
-    return config.get("openai_key")
 
-openai.api_key = load_openai_key()
+# 내부 저장소 경로 설정
+BASE_DIR = Path("C:/covenant")
+RENDER_DIR = BASE_DIR / "rendered"
+RENDER_DIR.mkdir(parents=True, exist_ok=True)
 
-# 📁 캐시 파일 경로
-CACHE_FILE = Path(r"C:\Covenant\cache\cache.json")
+CONFIG_PATH = Path("C:/covenant/config.yaml")
+
+CACHE_FILE = BASE_DIR / "cache" / "cache_코드생성기.json"
 CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-# 🧠 캐시 저장
+
+# API 키 로드
+def load_openai_key():
+    if not CONFIG_PATH.exists():
+        raise FileNotFoundError(f"{CONFIG_PATH} 파일이 존재하지 않습니다.")
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config["openai_api_key"]
+
+
+# 캐시 저장
 def save_to_cache(record):
     data = []
     if CACHE_FILE.exists():
@@ -38,269 +58,221 @@ def save_to_cache(record):
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# 🔍 캐시에서 유사 명령 검색
+
+# 유사 명령 찾기
 def find_similar_command(command, top_n=1):
     if not CACHE_FILE.exists():
         return []
-
     with open(CACHE_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-
     similar = [d for d in data if command in d['command'] or d['command'] in command]
     return similar[:top_n]
 
-# 🔄 GPT 호출
+
+
 def Run_GPT(nl_command, error_msg=None):
     api_key = load_openai_key()
-    similar = find_similar_command(nl_command)
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
+    similar = find_similar_command(nl_command)
     past_context = ""
     if similar:
-        example = similar[0]
-        past_context = f"""
-        참고할 수 있는 과거 명령과 GPT 응답이 있습니다:
+        past_context = f"\n과거 예시:\n{similar[0]['command']}\n{similar[0]['cleaned_code']}"
 
-        - 이전 명령: {example['command']}
-        - 이전 코드 예시: {example['cleaned_code']}
-        - 실행 결과: {example['output']}
-        """
+    prompt = f"""
+     사용자 명령: {nl_command}
+    {past_context}
+    - 실행 가능한 파이썬 코드를 생성해주세요.
+    - 예시데이터를 사용하지 말아요. 반드시 실제 데이터를 사용해주세요.
+    - 데이터는 가장 최근까지 업데이트된 데이터를 사용해주세요.
+    - 데이터와 자료의 출처를 명시해주세요. 이 경우 HTML div 또는 주석으로 처리해주세요.
+    - pandas와 plotly를 사용해주세요.
+    - fig = px.line(...) 또는 go.Figure 사용
+    - go.Figure를 사용할 때는 pio.write_html(fig, file='render.html', auto_open=False)를 사용해주세요. 
+    - fig를 반환하는 방식으로 작성
+    - 마크다운 없이 코드만 출력
+    - 외부 파일을 읽거나 쓰지 마세요. 필요한 경우 데이터를 반드시 코드에 포함해주세요.
+    - 표나 그래프 타이틀에는 자료의 출처를 표기해주세요.
+    """
 
     if error_msg:
-        prompt = f"""
-        사용자가 요청한 명령: {nl_command}
+        missing = extract_missing_module(error_msg)
+        module_hint = f"\n💡 오류 메시지로 보아 '{missing}' 모듈이 누락된 것으로 보입니다." if missing else ""
+        prompt += f"\n\n오류 메시지:\n{error_msg}{module_hint}\n오류를 수정한 코드를 출력해주세요."
+        
+    if isinstance(error_msg, str) and "fig" in error_msg.lower():
+        prompt += "\n\nfig 객체가 생성되지 않아 HTML 렌더링에 실패했습니다. 반드시 fig = ... 코드를 포함해주세요."
 
-        아래는 GPT가 생성한 코드 실행 중 발생한 오류입니다:
-        ```
-        {error_msg}
-        ```
-
-        {past_context}
-
-        이 오류를 수정하여 다시 완전한 파이썬 코드를 생성해주세요.
-        실행 가능한 코드만 출력하고, 설명이나 마크다운 블록(예: ```python)은 포함하지 마세요.
-        """
-    else:
-        prompt = f"""
-        사용자의 명령: {nl_command}
-
-        {past_context}
-
-        위 명령을 기반으로 실행 가능한 파이썬 코드를 생성해주세요.
-        Dash 앱에서 HTML 요소를 사용해 시각화 가능하도록 구성해주세요.
-        마크다운 블록 없이 코드만 출력하세요.
-        """
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+    print("[GPT에 전달된 프롬프트]\n", prompt)
 
     payload = {
         "model": "gpt-4",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3,
-        "max_tokens": 700
+        "max_tokens": 1000
     }
 
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers=headers,
-        json=payload,
-        verify=False
-    )
+    res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload, verify=False)
+    if res.status_code != 200:
+        return f"# 오류 발생: {res.status_code}\n{res.text}", prompt
+    return res.json()['choices'][0]['message']['content'].strip(), prompt
 
-    if response.status_code != 200:
-        return f"# 오류 발생: {response.status_code}\n{response.text}"
 
-    return response.json()['choices'][0]['message']['content'].strip()
 
-# 🧼 코드 클린 처리
-def clean_code(text: str) -> str:
-    matches = re.findall(r"```python(.*?)```", text, re.DOTALL | re.IGNORECASE)
-    if matches:
-        code = "\n\n".join(match.strip() for match in matches)
-    else:
-        code = text.strip()
+def clean_code(text):
+    # 1. 모든 ```python ... ``` 블럭 추출
+    code_blocks = re.findall(r"```(?:python)?(.*?)```", text, flags=re.DOTALL)
 
-    code = re.sub(r"#.*", "", code)
-    code = re.sub(r'""".*?"""', "", code, flags=re.DOTALL)
-    code = re.sub(r"'''.*?'''", "", code, flags=re.DOTALL)
-    return code.strip()
+    # 2. 각 블럭별로 줄 단위 필터링 (자연어 설명 제거)
+    cleaned = []
+    for block in code_blocks:
+        lines = block.splitlines()
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # 자연어로 추정되는 줄 제거 (한글 문장 또는 마침표 등)
+            if re.match(r'^[\uac00-\ud7a3a-zA-Z0-9 ,\'"()\[\]{}=<>:+\-/*%&|!~`^]+$', line):
+                cleaned.append(line)
 
-def clean_GPT(GPT_reply: str):
-    cleaned_code = clean_code(GPT_reply)
-    print("cleaned_code", cleaned_code)
-    return cleaned_code
+    return '\n'.join(cleaned).strip()
 
-# ▶️ 코드 실행
+
+
+
+
+def extract_missing_module(error_msg):
+    match = re.search(r"NameError: name '(\w+)' is not defined", error_msg)
+    if match:
+        return match.group(1)
+    return None
+
+
+
 def execute_python_code(code):
     old_stdout = sys.stdout
-    redirected_output = sys.stdout = io.StringIO()
-    error_msg = ""
+    sys.stdout = io.StringIO()
+    local_vars = {}
+    error = ""
+
+
+    safe_globals = {
+    "pd": pd,
+    "px": px,
+    "go": go,
+    "pio": pio,
+    "np": np,
+    "random": random,
+    "yf": yfinance,
+    "requests": requests,
+    }
+
+
     try:
-        exec(code, {})
+        exec(code, safe_globals, local_vars)
+        fig = local_vars.get('fig')
+        if fig:
+            html = pio.to_html(fig, full_html=True, include_plotlyjs='cdn')
+            filename = f"render_{uuid.uuid4().hex[:8]}.html"
+            filepath = RENDER_DIR / filename
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(html)
+            return filepath.name, ""
+        elif 'df' in local_vars:
+            df = local_vars['df']
+            html = df.to_html(index=False)
+            filename = f"render_{uuid.uuid4().hex[:8]}.html"
+            filepath = RENDER_DIR / filename
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(html)
+            return filepath.name, ""
     except Exception:
-        error_msg = traceback.format_exc()
-    sys.stdout = old_stdout
-    output = redirected_output.getvalue()
-    return output, error_msg
+        error = traceback.format_exc()
+        # 💡 누락된 모듈 이름 추출
+        missing_module = extract_missing_module(error)
+        if missing_module:
+            error += f"\n\n추가로 '{missing_module}' 모듈이 필요한 것으로 보입니다. Run_GPT에 전달하여 반영해주세요."
+    finally:
+        sys.stdout = old_stdout
+    return None, error
 
-# 💬 실행 결과 요약
-def summarize_result(output, error):
-    api_key = load_openai_key()
-    prompt = f"다음 에러 메시지를 사용자에게 이해하기 쉽게 설명해줘:\n{error}" if error \
-             else f"다음 파이썬 실행 결과를 간단히 요약해서 설명해줘:\n{output}"
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
 
-    payload = {
-        "model": "gpt-4",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.3,
-        "max_tokens": 300
-    }
-
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers=headers,
-        json=payload,
-        verify=False
-    )
-
-    if response.status_code != 200:
-        return f"[요약 중 오류 발생: {response.status_code}] {response.text}"
-
-    return response.json()['choices'][0]['message']['content'].strip()
-
-# 🧠 API 엔드포인트
-@app.route('/run', methods=['POST'])
+# API 엔드포인트
+@app.route("/run", methods=["POST"])
 def run_code():
-    data = request.json
-    nl_command = data.get('command', '')
-
-    GPT_reply = Run_GPT(nl_command)
-    cleaned_code = clean_GPT(GPT_reply)
-    output, error = execute_python_code(cleaned_code)
-
-    if error:
-        GPT_reply_feedback = Run_GPT(nl_command, error_msg=error)
-        cleaned_code_feedback = clean_GPT(GPT_reply_feedback)
-        output_feedback, error_feedback = execute_python_code(cleaned_code_feedback)
-        summary = summarize_result(output_feedback, error_feedback)
+    try:
+        data = request.json
+        command = data.get("command", "")
+        gpt_reply, prompt = Run_GPT(command)
+        cleaned_code = clean_code(gpt_reply)
+        rendered_filename, error = execute_python_code(cleaned_code)
 
         save_to_cache({
-            'command': nl_command,
-            'GPT_reply': GPT_reply_feedback,
-            'cleaned_code': cleaned_code_feedback,
-            'output': output_feedback,
-            'error': error_feedback,
-            'summary': summary
+            "command": command,
+            "prompt": prompt,
+            "GPT_reply": gpt_reply,
+            "cleaned_code": cleaned_code,
+            "output": rendered_filename,
+            "error": error
         })
+
+        if error:
+            return jsonify({
+                "prompt": prompt,
+                "GPT_reply": gpt_reply,
+                "cleaned_code": cleaned_code,
+                "output": "",
+                "error": error,
+                "summary": "오류 발생"
+            }), 200
 
         return jsonify({
-            'GPT_reply': GPT_reply_feedback,
-            'cleaned_code': cleaned_code_feedback,
-            'output': output_feedback,
-            'error': error_feedback,
-            'summary': summary,
-            'feedback_used': True
-        })
+            "prompt": prompt,
+            "GPT_reply": gpt_reply,
+            "cleaned_code": cleaned_code,
+            "output": f"/rendered/{rendered_filename}",
+            "error": "",
+            "summary": "코드 실행 및 HTML 렌더링 성공"
+        }), 200
 
-    summary = summarize_result(output, error)
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "summary": "서버 처리 중 오류 발생"
+        }), 500
 
-    save_to_cache({
-        'command': nl_command,
-        'GPT_reply': GPT_reply,
-        'cleaned_code': cleaned_code,
-        'output': output,
-        'error': error,
-        'summary': summary
-    })
 
-    return jsonify({
-        'GPT_reply': GPT_reply,
-        'cleaned_code': cleaned_code,
-        'output': output,
-        'error': error,
-        'summary': summary,
-        'feedback_used': False
-    })
+@app.route("/rendered/<path:filename>")
+def serve_rendered_html(filename):
+    if (RENDER_DIR / filename).exists():
+        return send_from_directory(RENDER_DIR, filename)
+    return f"파일을 찾을 수 없습니다: {filename}", 404
 
-# 🌐 프론트 웹 UI
-@app.route('/')
+
+
+
+
+@app.route("/")
 def index():
-    return '''
-    <!DOCTYPE html>
-    <html lang="ko">
-    <head>
-        <meta charset="UTF-8">
-        <title>자연어 → 파이썬 실행기</title>
-        <style>
-            body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
-            textarea, pre { width: 100%; }
-            textarea { height: 100px; }
-            button { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
-            .section { margin-top: 30px; }
-        </style>
-    </head>
-    <body>
-        <h1>자연어 → 파이썬 코드 실행기</h1>
-        <textarea id="command" placeholder="예: 1부터 10까지 합을 구하는 코드를 작성해줘"></textarea><br>
-        <button onclick="runCommand()">실행</button>
+    return render_template("index_코드생성기.html")
 
-        <div class="section">
-            <h3>⛏️ 생성된 코드 (GPT 원문)</h3>
-            <pre id="code"></pre>
-        </div>
-        <div class="section">
-            <h3>🧹 클린된 실행 코드</h3>
-            <pre id="cleaned_code"></pre>
-        </div>
-        <div class="section">
-            <h3>📤 출력 결과</h3>
-            <pre id="output"></pre>
-        </div>
-        <div class="section">
-            <h3>💡 설명 요약</h3>
-            <pre id="summary"></pre>
-        </div>
 
-        <script>
-            async function runCommand() {
-                const command = document.getElementById("command").value;
-                const res = await fetch("/run", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ command })
-                });
-                const data = await res.json();
-                document.getElementById("code").textContent = data.GPT_reply || '';
-                document.getElementById("cleaned_code").textContent = data.cleaned_code || '';
-                document.getElementById("output").textContent = data.output || '';
-                document.getElementById("summary").textContent = data.summary || '';
-            }
-        </script>
-    </body>
-    </html>
-    '''
 
-# 🔌 포트 찾기
-DEFAULT_PORT = 8051
-def find_available_port(start_port=DEFAULT_PORT, max_attempts=10):
-    for port in range(start_port, start_port + max_attempts):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(("0.0.0.0", port))
-                return port
-            except OSError:
-                continue
-    raise RuntimeError("사용 가능한 포트를 찾을 수 없습니다.")
 
-# 🚀 서버 실행
+
+# 포트 찾기 및 실행
 if __name__ == '__main__':
+    def find_available_port(start_port=8050, max_attempts=10):
+        for port in range(start_port, start_port + max_attempts):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                try:
+                    s.bind(("0.0.0.0", port))
+                    return port
+                except OSError:
+                    continue
+        raise RuntimeError("사용 가능한 포트를 찾을 수 없습니다.")
+
     port = find_available_port()
     print(f"서버가 실행 중입니다: http://localhost:{port}")
     app.run(debug=True, host='0.0.0.0', port=port)

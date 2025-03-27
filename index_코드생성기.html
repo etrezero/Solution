@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>자연어 → 파이썬 실행기</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 20px; background: #f9f9f9; display: flex; justify-content: center; }
+    .container { width: 90%; max-width: 800px; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    textarea { width: 100%; height: 100px; font-size: 16px; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
+    button { padding: 12px 16px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    .section { margin-top: 30px; }
+    pre, .html-output { background: #f1f1f1; padding: 10px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; }
+    #loading { display: none; text-align: center; margin-top: 20px; }
+    .spinner { margin: auto; border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 36px; height: 36px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* 모달 */
+    #errorModal {
+      display: none;
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translate(-50%, -20%);
+      background: white;
+      border: 1px solid #ccc;
+      padding: 20px;
+      z-index: 1000;
+      width: 80%;
+      max-width: 600px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    #errorModal button {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>자연어 → 파이썬 코드 실행기<br>*Covenant*</h1>
+    
+    <textarea 
+    id="command" 
+    placeholder=
+    "예: 대한민국 인구추이를 그래프로 작성해줘 <br>
+예: 대한민국 3년만기 국채금리 추이를 그래프로 작성해줘 <br>
+예: 미국 S&P500 주가 추이를 그래프로 작성해줘 <br>
+    ">
+
+대한민국 인구추이를 그래프로 작성해줘
+    </textarea>
+
+
+    <button id="run-btn" onclick="runCommand()">실행</button>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <p>GPT 응답을 기다리는 중입니다...</p>
+    </div>
+
+    <div class="section">
+      <h3>📄 Code 생성</h3>
+      <div id="output" class="html-output"></div>
+    </div>
+    <div class="section">
+      <h3>🥹 Code 실행 결과</h3>
+      <div id="rendered_cleaned_code" class="html-output dash-container" onclick="showRenderedCleanedCode()"></div>
+    </div>
+  </div>
+
+  <!-- 📌 오류 팝업 모달 -->
+  <div id="errorModal">
+    <h3>🚨 오류 발생</h3>
+    <pre id="errorText"></pre>
+    <button onclick="copyErrorText()">📋 복사</button>
+    <button onclick="document.getElementById('errorModal').style.display='none'">닫기</button>
+  </div>
+
+  <script>
+    async function runCommand() {
+      document.getElementById("loading").style.display = "block";
+      const runBtn = document.getElementById("run-btn");
+      runBtn.disabled = true;
+      runBtn.textContent = "실행 중...";
+
+      const command = document.getElementById("command").value;
+      try {
+        const res = await fetch("/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command })
+        });
+        const data = await res.json();
+
+        const renderedCodeEl = document.getElementById("rendered_cleaned_code");
+        const outputEl = document.getElementById("output");
+
+
+        
+        if (data.error) {
+          showErrorPopup(data.error);
+          renderedCodeEl.innerHTML = `<pre>${data.cleaned_code || ''}</pre>`;
+          outputEl.innerHTML = "";
+        } else {
+          if (data.output.startsWith("/rendered/")) {
+            renderedCodeEl.innerHTML = `<iframe src="${data.output}" width="100%" height="400" style="border:none;"></iframe>`;
+          } else {
+            renderedCodeEl.innerHTML = `<p>HTML 파일 생성에 실패했습니다.</p>`;
+          }
+          outputEl.innerHTML = `<pre>${data.cleaned_code || ''}</pre>`;
+        }
+      } catch (err) {
+        showErrorPopup("네트워크 오류: " + err.message);
+      } finally {
+        document.getElementById("loading").style.display = "none";
+        runBtn.disabled = false;
+        runBtn.textContent = "실행";
+      }
+    }
+
+
+    function showRenderedCleanedCode() {
+      const iframe = document.querySelector('#rendered_cleaned_code iframe');
+      if (iframe) window.open(iframe.src, '_blank');
+    }
+
+    function showErrorPopup(message) {
+      document.getElementById("errorText").textContent = message;
+      document.getElementById("errorModal").style.display = "block";
+    }
+
+
+  function copyErrorText() {
+    const textEl = document.getElementById("errorText");
+    const textToCopy = textEl.textContent;
+    const copyBtn = document.querySelector("#errorModal button");
+
+    // 텍스트 선택
+    const range = document.createRange();
+    range.selectNodeContents(textEl);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    // ✅ navigator.clipboard 지원 시 사용
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        copyBtn.textContent = "✅ 복사됨";
+        setTimeout(() => {
+          copyBtn.textContent = "📋 복사";
+        }, 1500);
+      }).catch((err) => {
+        fallbackCopy(textToCopy, copyBtn);
+      });
+    } else {
+      // ❗ fallback (구버전 브라우저 지원)
+      fallbackCopy(textToCopy, copyBtn);
+    }
+  }
+
+  function fallbackCopy(text, copyBtn) {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "absolute";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+
+      const successful = document.execCommand("copy");
+      document.body.removeChild(textarea);
+
+      if (successful) {
+        copyBtn.textContent = "✅ 복사됨";
+        setTimeout(() => {
+          copyBtn.textContent = "📋 복사";
+        }, 1500);
+      } else {
+        alert("❌ 복사에 실패했습니다.");
+      }
+    } catch (err) {
+      alert("❌ 복사 오류: " + err.message);
+    }
+  }
+
+
+
+
+  </script>
+</body>
+</html>
