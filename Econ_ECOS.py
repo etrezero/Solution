@@ -1,503 +1,355 @@
 import pandas as pd
-import numpy as np
-import openpyxl
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+import requests
+from dash import Dash, dcc, html, Input, Output, State
+import dash
+import plotly.graph_objects as go
+from pathlib import Path
+import yaml
 import os
 from openpyxl import Workbook
-import dash
-from dash import Dash, dcc, html, dash_table
-from dash.dependencies import Input, Output, State
 
-import plotly.graph_objects as go
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-import requests
-
-import pandas as pd
-import requests
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-import yaml
+from dash import ctx
 
 
+BASE_DIR = Path("C:/covenant")
+CONFIG_PATH = BASE_DIR / "config.yaml"
+SAVE_PATH = BASE_DIR / "data" / "ECOS_data.csv"
+CACHE_FILE = BASE_DIR / "cache" / "cache_ECOS.json"
+CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-
-def load_config(config_path='config.yaml'):
-    """
-    Config 파일에서 API 키를 로드합니다.
-    """
-    try:
-        with open(config_path, 'r') as file:
-            config = yaml.safe_load(file)
-            api_key = config.get('ECOS_key', None)
-            return api_key
-    except FileNotFoundError:
-        print(f"Configuration file {config_path} not found.")
-        return None
-    except yaml.YAMLError as e:
-        print(f"Error reading {config_path}: {e}")
-        return None
-
-
-config_path = r'C:\Covenant\config.yaml'
-ECOS_API_KEY = load_config(config_path)
-
-
-
-
-# ECOS API 호출 함수
-def ECOS_StatisticSearch(stat_code, Frequency, item_code, start, end):
-    """
-    한국은행 ECOS API를 사용하여 데이터 가져오기
-    """
-    # Frequency에 따른 날짜 형식 변환
-    if Frequency == 'A':  # 연간 데이터
-        start_date = start.strftime('%Y')
-        end_date = end.strftime('%Y')
-    elif Frequency == 'Q':  # 분기 데이터
-        start_date = start.strftime('%Y') + 'Q' + str((start.month - 1) // 3 + 1)
-        end_date = end.strftime('%Y') + 'Q' + str((end.month - 1) // 3 + 1)
-    elif Frequency == 'M':  # 월간 데이터
-        start_date = start.strftime('%Y%m')
-        end_date = end.strftime('%Y%m')
-    elif Frequency == 'D':  # 일간 데이터
-        start_date = start.strftime('%Y%m%d')
-        end_date = end.strftime('%Y%m%d')
-    else:
-        raise ValueError("Invalid Frequency. Use 'A', 'Q', 'M', or 'D'.")
-    # API 호출 URL 구성
-    url = (
-        f"http://ecos.bok.or.kr/api/StatisticSearch/"
-        f"{ECOS_API_KEY}/json/kr/1/100/"
-        f"{stat_code}/{Frequency}/{start_date}/{end_date}/{item_code}"
-    )
-    
-    try:
-        # SSL 인증서를 무시하기 위해 verify=False 추가
-        response = requests.get(url, verify=False)
-        response.raise_for_status()
-        data = response.json()
-        
-        if 'StatisticSearch' in data:
-            rows = data['StatisticSearch']['row']
-            df = pd.DataFrame(rows)
-
-            # 'TIME' 열 처리
-            if Frequency == 'M':
-                df['TIME'] = pd.to_datetime(df['TIME'], format='%Y%m')  # %Y%m 형식으로 변환
-                df['TIME'] = df['TIME'].dt.to_period('M').dt.strftime('%Y%m')  # 매월 1일로 설정하고 형식을 유지
-            else:
-                df['TIME'] = pd.to_datetime(df['TIME'])
-
-
-
-            df.set_index('TIME', inplace=True)
-            df = df[['DATA_VALUE']].astype(float)
-            
-            return df
-        else:
-            print("No data found in response.")
-            return None
-    except Exception as e:
-        print(f"Error fetching ECOS data: {e}")
-        return None
-
-
-
-# 여러 지표 데이터를 병합하는 함수 수정
-def get_ECOS(item_dict, Frequency, start, end):
-    merged_df = pd.DataFrame()
-
-    for stat_code, items in item_dict.items():
-        for item_code, column_name in items:
-            df = ECOS_StatisticSearch(stat_code, Frequency, item_code, start, end)
-            if df is not None:
-                df.rename(columns={'DATA_VALUE': column_name}, inplace=True)
-                if merged_df.empty:
-                    merged_df = df
-                else:
-                    merged_df = pd.merge(merged_df, df, left_index=True, right_index=True, how='outer')
-    
-    return merged_df
-
-
-
-
-path = rf'C:\Covenant\data\ECON_ECOS.xlsx'
-
-#엑셀 저장=======================================================
 def save_excel(df, sheetname, index_option=None):
-    
-    # 파일 경로
-    path = rf'C:\Covenant\data\ECON_ECOS.xlsx'
-
-    # 파일이 없는 경우 새 Workbook 생성
+    path = rf'C:\Covenant\data\ECOS.xlsx'
     if not os.path.exists(path):
         wb = Workbook()
         wb.save(path)
         print(f"새 파일 '{path}' 생성됨.")
-    
-    # 인덱스를 날짜로 변환 시도
+
     try:
-        # index_option이 None일 경우 인덱스를 포함하고 날짜 형식으로 저장
-        if index_option is None or index_option:  # 인덱스를 포함하는 경우
+        if index_option is None or index_option:
             df.index = pd.to_datetime(df.index, errors='coerce')
-            df.index = df.index.strftime('%Y-%m-%d')  # 벡터화된 방식으로 날짜 포맷 변경
-            index = True  # 인덱스를 포함해서 저장
+            df.index = df.index.strftime('%Y-%m-%d')
+            index = True
         else:
-            index = False  # 인덱스를 제외하고 저장
+            index = False
     except Exception:
         print("Index를 날짜 형식으로 변환할 수 없습니다. 기본 인덱스를 사용합니다.")
-        index = index_option if index_option is not None else True  # 변환 실패 시에도 인덱스를 포함하도록 설정
+        index = index_option if index_option is not None else True
 
-    # DataFrame을 엑셀 시트로 저장
     with pd.ExcelWriter(path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-        df.to_excel(writer, sheet_name=sheetname, index=index)  # index 여부 설정
+        df.to_excel(writer, sheet_name=sheetname, index=index)
         print(f"'{sheetname}' 저장 완료.")
 
+    df.index = pd.to_datetime(df.index, errors='coerce')
 
+def Load_API_KEY():
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["ECOS_API_KEY"]
 
-
-
-
-
-
-
-# 테스트 데이터 가져오기
-if __name__ == "__main__":
-
-
-    경제성장률 = {
-        '902Y015': [
-                    ('KOR', '한국'),
-                    ('USA', '미국'),
-                    ('CAN', '캐나다'),
-                    ('AUS', '호주'),
-                    ('CHN', '중국'),
-                    ('FRA', '프랑스'),
-                    ('DEU', '독일'),
-                    ('JPN', '일본'),
-                    ('GBR', '영국'),
-        ],
-    }
-
-
-
-    소비자물가지수 = {
-        '902Y008': [
-                    ('KR', '한국'),
-                    ('US', '미국'),
-                    ('CA', '캐나다'),
-                    ('AU', '호주'),
-                    ('CN', '중국'),
-                    ('FR', '프랑스'),
-                    ('DE', '독일'),
-                    ('JP', '일본'),
-                    ('GB', '영국'),
-        ],
-    }
-
-
-
-    생산자물가지수 = {
-        '902Y007': [
-                    ('KR', '한국'),
-                    ('US', '미국'),
-                    ('CA', '캐나다'),
-                    ('AU', '호주'),
-                    ('CN', '중국'),
-                    ('FR', '프랑스'),
-                    ('DE', '독일'),
-                    ('JP', '일본'),
-                    ('GB', '영국'),
-        ],
-    }
-
-
-
-    
-    수출 = {
-        '902Y012': [
-                    ('KR', '한국'),
-                    ('US', '미국'),
-                    ('CA', '캐나다'),
-                    ('AU', '호주'),
-                    ('CN', '중국'),
-                    ('FR', '프랑스'),
-                    ('DE', '독일'),
-                    ('JP', '일본'),
-                    ('GB', '영국'),
-        ],
-    }
-
-
-
-    환율 = {
-        '731Y003': [
-                    ('0000003', '한국'),
-        ],
-
-        '731Y002': [
-                    ('0000013', '캐나다'),
-                    ('0000008', '$/호주'),
-                    ('0000027', '중국'),
-                    ('0000005', '프랑스'),
-                    ('0000004', '독일'),
-                    ('0000002', '일본'),
-                    ('0000003', '$/유로'),
-                    ('0000012', '$/영국'),
-                    ('0000035', '베트남'),
-        ],
-
-    }
-
-
-
-
-    
-    외환보유액 = {
-        '902Y014': [
-                    ('KR', '한국'),
-                    ('US', '미국'),
-                    ('CA', '캐나다'),
-                    ('AU', '호주'),
-                    ('CN', '중국'),
-                    ('FR', '프랑스'),
-                    ('DE', '독일'),
-                    ('JP', '일본'),
-                    ('GB', '영국'),
-        ],
-    }
-
-
-    산업생산지수 = {
-        '902Y020': [
-                    ('KOR', '한국'),
-                    ('USA', '미국'),
-                    ('CAN', '캐나다'),
-                    ('AUS', '호주'),
-                    ('CHN', '중국'),
-                    ('FRA', '프랑스'),
-                    ('DEU', '독일'),
-                    ('JPN', '일본'),
-                    ('GBR', '영국'),
-        ],
-    }
-
-
-
-    실업률 = {
-        '902Y021': [
-                    ('KOR', '한국'),
-                    ('USA', '미국'),
-                    ('CAN', '캐나다'),
-                    ('AUS', '호주'),
-                    ('CHN', '중국'),
-                    ('FRA', '프랑스'),
-                    ('DEU', '독일'),
-                    ('JPN', '일본'),
-                    ('GBR', '영국'),
-        ],
-    }
-
-
-
-    대외채무 = {
-        '311Y004': [
-                    ('A000000', '대외채무(USD mil.)'),
-        ],
-    }
-
-    
-    대외채권 = {
-        '311Y005': [
-                    ('B000000', '대외채권(USD mil.)'),
-        ],
-    }
-
-
-    
-    순대외채권 = {
-        '311Y006': [
-                    ('C000000', '순대외채권(USD mil.)'),
-        ],
-    }
-
-
-
-    평균임금 = {
-        '901Y086': [
-                    ('I68A', '전직종'),
-        ],
-    }
-
-
-    주택시가총액 = {
-        '291Y424': [
-                    ('101', '주택시가총액(십억원)'),
-        ],
-    }
-
-
-
-    금융기관유동성 = {
-        '101Y018': [
-                    ('BBLS00', 'M1(십억원)'),
-                    ('A110000', '중앙은행(십억원)'),
-        ],
-
-        '101Y003': [
-                    ('BBHS00', 'M2(십억원)'),
-                    ('BBHS01', '현금(십억원)'),
-                    ('BBHS02', '요구불예금(십억원)'),
-                    ('BBHS03', '입출식저축성예금(십억원)'),
-                    ('BBHS04', 'MMF(십억원)'),
-                    ('BBHS05', '2년미만 정기예금(십억원)'),
-                    ('BBHS06', '수익증권(십억원)'),
-        ],
-    }
-
-
-
-
-
-    # Term 정의 (A: 연간, Q: 분기, M: 월간, D: 일간)
-    
-
-    # 시작과 종료 날짜 설정
-    start = datetime.today() - relativedelta(years=10)
-    end = datetime.today() - relativedelta(months=1)
-
-    
-    df_경제성장률 = get_ECOS(경제성장률, 'Q', start, end).ffill()
-    df_소비자물가지수 = get_ECOS(소비자물가지수, 'Q', start, end).ffill()
-    df_생산자물가지수 = get_ECOS(생산자물가지수, 'Q', start, end).ffill()
-    df_수출 = get_ECOS(수출, 'Q', start, end).ffill()
-    df_외환보유액 = get_ECOS(외환보유액, 'Q', start, end).ffill()
-    df_산업생산지수 = get_ECOS(산업생산지수, 'Q', start, end).ffill()
-    df_실업률 = get_ECOS(실업률, 'Q', start, end).ffill()
-    df_대외채무 = get_ECOS(대외채무, 'Q', start, end).ffill()
-    df_대외채권 = get_ECOS(대외채권, 'Q', start, end).ffill()
-    df_순대외채권 = get_ECOS(순대외채권, 'Q', start, end).ffill()
-    
-    
-
-    
-    df_평균임금 = get_ECOS(평균임금, 'A', start, end).ffill()
-    df_주택시가총액 = get_ECOS(주택시가총액, 'A', start, end).ffill()
-        
-
-
-    df_금융기관유동성 = get_ECOS(금융기관유동성, 'M', start, end).ffill()
-
-
-    df_환율 = get_ECOS(환율, 'D', start, end).ffill()
-        
-
-    # 리스트와 이름을 함께 저장 (선택 사항)
-    df_dict = [
-        ("경제성장률", df_경제성장률),
-
-        ("소비자물가지수", df_소비자물가지수),
-        ("생산자물가지수", df_생산자물가지수),
-
-        ("수출", df_수출),
-        ("외환보유액", df_외환보유액),
-
-        ("산업생산지수", df_산업생산지수),
-        ("실업률", df_실업률),
-
-        ("대외채무", df_대외채무),
-        ("대외채권", df_대외채권),
-        ("순대외채권", df_순대외채권),
-
-
-        ("평균임금", df_평균임금),
-        ("주택시가총액", df_주택시가총액),
-
-        ("금융기관유동성", df_금융기관유동성),
-
-        ("환율", df_환율),
-    ]
-
-    # 데이터프레임 리스트 확인
-    for name, df in df_dict:
-        print(f"\n{name}\n", df)
-
-
+ECOS_API_KEY = Load_API_KEY()
 
 app = Dash(__name__)
+app.title = "ECOS Data Viewer"
+
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+<head>
+    {%metas%}
+    <title>{%title%}</title>
+    {%favicon%}
+    {%css%}
+    <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
+    <style>
+        .custom-gutter {
+            background-color: #ccc;
+            cursor: col-resize;
+            width: 8px;
+            height: 100%;
+            z-index: 1000;
+        }
+        .custom-gutter:hover {
+            background-color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    {%app_entry%}
+    <footer>
+        {%config%}
+        {%scripts%}
+        {%renderer%}
+    </footer>
+    <script>
+        function initializeSplit() {
+            const left = document.querySelector('#left-pane');
+            const right = document.querySelector('#right-pane');
+            if (left && right) {
+                Split(['#left-pane', '#right-pane'], {
+                    sizes: [50, 50],
+                    minSize: 200,
+                    gutterSize: 8,
+                    gutterAlign: 'center',
+                    cursor: 'col-resize',
+                    gutter: function (index, direction) {
+                        const gutter = document.createElement('div');
+                        gutter.className = 'custom-gutter';
+                        return gutter;
+                    }
+                });
+            } else {
+                setTimeout(initializeSplit, 100);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeSplit);
+    </script>
+</body>
+</html>
+'''
+
+df_cache = pd.DataFrame()
+
+app.layout = html.Div(
+    style={'height': '100vh'},
+    children=[
+        html.Div(
+            id='split-container',
+            style={'display': 'flex', 'height': '100%'},
+            children=[
+                
+                html.Div(
+                    id='left-pane',
+                    style={
+                        'width': '50%', 'resize': 'horizontal', 'overflow': 'auto',
+                        'minWidth': '300px', 'maxWidth': '90vw', 'font-size': '15px',
+                        'padding': '20px', 'boxSizing': 'border-box', 'margin-top': '10px',
+                        'borderRight': '2px solid #ccc'
+                    },
+                    children=[
+                        html.H1("ECOS Data Viewer", style={'textAlign': 'center', 'marginBottom': '30px'}),
+                        
+                        html.Label("Stat Code:"),
+                        dcc.Input(
+                            id='stat-code', type='text', value='902Y015', placeholder='Enter stat code',
+                            style={'width': '30%', 'marginBottom': '15px', 'fontSize': '15px'}
+                        ),
+
+                        html.Label("Term:"),
+                        dcc.Dropdown(
+                            id='term',
+                            options=[{'label': t, 'value': t} for t in ['A', 'Q', 'M', 'D']],
+                            value='Q',
+                            style={'width': '30%', 'marginBottom': '15px'}
+                        ),
+
+                        html.Label("Start Date:"),
+                        dcc.DatePickerSingle(
+                            id='start-date',
+                            date=(datetime.today() - relativedelta(years=5)).strftime('%Y-%m-%d'),
+                            style={'width': '30%', 'marginBottom': '15px'}
+                        ),
+
+                        html.Label("End Date:"),
+                        dcc.DatePickerSingle(
+                            id='end-date',
+                            date=datetime.today().strftime('%Y-%m-%d'),
+                            style={'width': '30%', 'marginBottom': '30px'}
+                        ),
+
+                        html.Div(id='dropdown-container', style={'width': '30%', 'marginBottom': '30px'}),
+
+                        html.Div([
+                            html.Button("Stat Code 확정", id='fetch-button', n_clicks=0,
+                                        style={'width': '30%', 'marginRight': '10px', 'fontSize': '14px'}),
+                            html.Button("🔍 Filter Data", id='filter-button', n_clicks=0,
+                                        style={'width': '30%', 'marginRight': '10px', 'fontSize': '14px'}),
+                            html.Button("🔄 Reset", id='reset-dict', n_clicks=0,
+                                        style={'width': '30%', 'backgroundColor': '#dc3545',
+                                            'color': 'white', 'fontSize': '14px'})
+                        ], style={'display': 'flex', 'flexWrap': 'wrap', 'marginBottom': '30px'}),
+
+                        dcc.Graph(id='data-graph')
+                    ]
+                ),
 
 
 
-# 레이아웃 정의
-app.layout = html.Div([
-    html.H1("ECON_ECOS", style={'textAlign': 'center'}),
-    dcc.Dropdown(
-        id='dropdown',
-        options=[{'label': name, 'value': name} for name, _ in df_dict],
-        value='경제성장률',
-        placeholder="데이터 선택",
-        style={'width': '30%', 'margin': 'auto'}
-    ),
-    dcc.Graph(id='line-graph', style={'width': '60%', 'margin': 'auto'}),
-    
-    html.Button("EXCEL", id='save-button', style={'margin': '20px auto', 'display': 'block'}),
-    html.Div(id='save-status', style={'textAlign': 'center', 'marginTop': '10px'}),
-])
 
-
-
-
-# 콜백 함수 정의
-@app.callback(
-    Output('line-graph', 'figure'),
-    [Input('dropdown', 'value')]
+                html.Div(
+                    id='right-pane',
+                    style={
+                        'width': '50%', 'padding': '20px', 'overflowY': 'auto', 'backgroundColor': '#fff'
+                    },
+                    children=[
+                        html.H1("ECOS API Documentation", style={'textAlign': 'center'}),
+                        html.Iframe(
+                            src="https://ecos.bok.or.kr/api/#/DevGuide/StatisticalCodeSearch",
+                            style={'width': '100%', 'height': '90vh', 'border': 'none'}
+                        )
+                    ]
+                )
+            ]
+        )
+    ]
 )
-def update_graph(selected_name):
-    # 선택된 데이터프레임 가져오기
-    selected_df = next((df for name, df in df_dict if name == selected_name), None)
-    
-    if selected_df is not None:
-        fig = go.Figure()
-        for column in selected_df.columns:
-            fig.add_trace(go.Scatter(x=selected_df.index, y=selected_df[column], mode='lines', name=column))
-        fig.update_layout(
-            title=f"{selected_name} 데이터",
-            xaxis_title="시간",
-            yaxis_title="값",
-            yaxis=dict(tickformat=",.0f"),  # y축 값을 소수점 한 자리로 표시
-            template="plotly_white"
+
+
+
+from dash import ctx
+
+@app.callback(
+    Output('stat-code', 'value'),
+    Output('term', 'value'),
+    Output('start-date', 'date'),
+    Output('end-date', 'date'),
+    Output('dropdown-container', 'children'),
+    Input('reset-dict', 'n_clicks'),
+    Input('fetch-button', 'n_clicks'),
+    State('stat-code', 'value'),
+    State('term', 'value'),
+    State('start-date', 'date'),
+    State('end-date', 'date')
+)
+def update_inputs_or_fetch(reset_clicks, fetch_clicks, stat_code, term, start, end):
+    global df_cache
+    triggered_id = ctx.triggered_id
+
+    if triggered_id == 'reset-dict':
+        return (
+            '902Y015',
+            'Q',
+            (datetime.today() - relativedelta(years=5)).strftime('%Y-%m-%d'),
+            datetime.today().strftime('%Y-%m-%d'),
+            []
         )
 
+    elif triggered_id == 'fetch-button':
+        if not stat_code:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, []
 
-        return fig
+        start_dt = datetime.strptime(start, '%Y-%m-%d')
+        end_dt = datetime.strptime(end, '%Y-%m-%d')
+
+        valid_terms = ['A', 'Q', 'M', 'D']
+        if term not in valid_terms:
+            raise ValueError(f"잘못된 기간(term) 값입니다. 현재 term: {term}. 유효한 값: {valid_terms}")
+
+        if term == 'A':
+            start_date = start_dt.strftime('%Y')
+            end_date = end_dt.strftime('%Y')
+        elif term == 'Q':
+            start_date = f"{start_dt.year}Q{(start_dt.month - 1) // 3 + 1}"
+            end_date = f"{end_dt.year}Q{(end_dt.month - 1) // 3 + 1}"
+        elif term == 'M':
+            start_date = start_dt.strftime('%Y%m')
+            end_date = end_dt.strftime('%Y%m')
+        elif term == 'D':
+            start_date = start_dt.strftime('%Y%m%d')
+            end_date = end_dt.strftime('%Y%m%d')
+
+        url = f"http://ecos.bok.or.kr/api/StatisticSearch/{ECOS_API_KEY}/json/kr/1/100000/{stat_code}/{term}/{start_date}/{end_date}"
+        response = requests.get(url, verify=False)
+        rows = response.json().get('StatisticSearch', {}).get('row', [])
+        df = pd.DataFrame(rows)
+
+        if df.empty:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, html.Div("No data fetched.")
+
+        # ITEM_COMBO 열 생성 및 인덱스 설정
+        df['ITEM_COMBO'] = df[['ITEM_NAME1', 'ITEM_NAME2', 'ITEM_NAME3', 'ITEM_NAME4']].fillna('').agg('-'.join, axis=1)
+        df['DATA_VALUE'] = df['DATA_VALUE'].astype(float)
+        df.set_index(['TIME', 'ITEM_COMBO'], inplace=True)
+        df.sort_index(inplace=True)
+
+        # 중복 제거
+        df = df[~df.index.duplicated(keep='first')]
+
+        df_cache = df.copy()
+
+        save_excel(df.reset_index(), 'ECOS', index_option=False)
+
+        dropdowns = []
+        for col in ['ITEM_NAME1', 'ITEM_NAME2', 'ITEM_NAME3', 'ITEM_NAME4']:
+            if col in df.reset_index().columns:
+                values = sorted(df.reset_index()[col].dropna().unique())
+                dropdowns.append(html.Div([
+                    html.Label(col),
+                    dcc.Dropdown(
+                        id=f'dropdown-{col.lower()}',
+                        options=[{'label': v, 'value': v} for v in values],
+                        value=[],
+                        multi=True
+                    )
+                ]))
+
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dropdowns
+
     else:
-        # 선택된 데이터가 없을 경우 빈 그래프 반환
+        raise dash.exceptions.PreventUpdate
+
+
+
+
+
+
+
+@app.callback(
+    Output('data-graph', 'figure'),
+    Input('filter-button', 'n_clicks'),
+    State('dropdown-item_name1', 'value'),
+    State('dropdown-item_name2', 'value'),
+    State('dropdown-item_name3', 'value'),
+    State('dropdown-item_name4', 'value')
+)
+def filter_and_plot(n, val1, val2, val3, val4):
+    global df_cache
+    if df_cache.empty:
         return go.Figure()
 
+    df = df_cache.copy().reset_index()
+
+    filters = []
+
+    if 'ITEM_NAME1' in df.columns and val1:
+        filters.append(df['ITEM_NAME1'].isin(val1))
+    if 'ITEM_NAME2' in df.columns and val2:
+        filters.append(df['ITEM_NAME2'].isin(val2))
+    if 'ITEM_NAME3' in df.columns and val3:
+        filters.append(df['ITEM_NAME3'].isin(val3))
+    if 'ITEM_NAME4' in df.columns and val4:
+        filters.append(df['ITEM_NAME4'].isin(val4))
+
+    if filters:
+        condition = filters[0]
+        for f in filters[1:]:
+            condition &= f
+        df = df[condition]
+
+    df['TIME'] = pd.to_datetime(df['TIME'])
+
+    fig = go.Figure()
+    for combo in df['ITEM_COMBO'].unique():
+        df_line = df[df['ITEM_COMBO'] == combo]
+        fig.add_trace(go.Scatter(
+            x=df_line['TIME'],
+            y=df_line['DATA_VALUE'],
+            mode='lines+markers',
+            name=combo
+        ))
+
+    fig.update_layout(
+        title="Filtered ECOS Data (ITEM 조합별 라인)",
+        xaxis_title="Date",
+        yaxis_title="Value",
+        template="plotly_white"
+    )
+    return fig
 
 
 
-# 콜백: 엑셀로 저장
-@app.callback(
-    Output('save-status', 'children'),
-    [Input('save-button', 'n_clicks')],
-    [State('dropdown', 'value')]
-)
-def save_to_excel_btn(n_clicks, selected_name):
-    if n_clicks > 0 and selected_name:
-        # 선택된 데이터프레임 가져오기
-        selected_df = next((df for name, df in df_dict if name == selected_name), None)
-        if selected_df is not None:
-            # 엑셀 파일로 저장
-            save_excel(selected_df, selected_name)
-            return f"'{selected_name}' 데이터를 {path}에 엑셀 파일로 저장했습니다."
-    return "[저장 버튼]을 클릭해주세요."
 
 
-# 앱 실행
-if __name__ == '__main__':
-    app.run_server(debug=False,host='0.0.0.0') 
-
-
-
+if __name__ == "__main__":
+    app.run_server(debug=False, host='0.0.0.0')
