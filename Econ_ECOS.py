@@ -268,7 +268,7 @@ def update_inputs_or_fetch(reset_clicks, fetch_clicks, stat_code, term, start, e
 
         df_cache = df.copy()
 
-        save_excel(df.reset_index(), 'ECOS', index_option=False)
+        # save_excel(df.reset_index(), 'ECOS', index_option=False)
 
         dropdowns = []
         for col in ['ITEM_NAME1', 'ITEM_NAME2', 'ITEM_NAME3', 'ITEM_NAME4']:
@@ -338,13 +338,19 @@ def filter_and_plot(n, val1, val2, val3, val4):
             mode='lines+markers',
             name=combo
         ))
+    
+    stat_name = df['STAT_NAME'].unique()[0]
+    unit_name = df['UNIT_NAME'].unique()[0]
 
     fig.update_layout(
-        title="Filtered ECOS Data (ITEM 조합별 라인)",
+        title=f"{stat_name} : {unit_name}",
         xaxis_title="Date",
         yaxis_title="Value",
         template="plotly_white"
     )
+    
+    # save_excel(df_line.reset_index(), 'Data_graph', index_option=False)
+
     return fig
 
 
