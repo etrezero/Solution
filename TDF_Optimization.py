@@ -848,24 +848,27 @@ else:
 
 print("df_data_krw***********************", df_data_krw)
 
-
 trace_krw = go.Scatter(
-    x=df_data_krw['변동성'],  # 가로축 데이터:
-    y=df_data_krw['기대수익률'],  # 세로축 데이터: 
+    x=df_data_krw['변동성'],
+    y=df_data_krw['기대수익률'],
     mode='markers',
+    text=df_data_krw.index,  # 인덱스를 hover 텍스트로 사용
+    hoverinfo='text+x+y',    # hover 시 텍스트, x, y 모두 표시
     marker=dict(
-        size=bubble_sizes_krw,  # 버블의 크기: 
-        color='#3762AF',  # 1번 그래프 버블 색상  
+        size=bubble_sizes_krw,
+        color='#3762AF',
     )
 )
 
 trace_usd = go.Scatter(
-    x=df_data_usd['변동성'],  # 가로축 데이터: 
-    y=df_data_usd['기대수익률'],  # 세로축 데이터: 
+    x=df_data_usd['변동성'],
+    y=df_data_usd['기대수익률'],
     mode='markers',
+    text=df_data_usd.index,
+    hoverinfo='text+x+y',
     marker=dict(
-        size=bubble_sizes_usd,  # 버블의 크기: 데이터 테이블의 5번째 열의 표준화된 값으로 설정
-        color='#630',  # 2번 그래프 버블 색상
+        size=bubble_sizes_usd,
+        color='#630',
     )
 )
 
@@ -876,12 +879,12 @@ layout = go.Layout(
     # title='자산군별 위험대비수익률',
     xaxis=dict(
         title='변동성',
-        range=[0,0.35],
+        range=[0,df_data_krw['변동성'].max()+0.02],
         tickformat='.1%',   # y축의 범위를 0부터 시작하도록 설정합니다.
     ),  # 가로축 레이블
     yaxis=dict(
         title='기대수익률',  # y축의 제목을 설정합니다.
-        range=[0, None],
+        range=[0, df_data_krw['기대수익률'].max()+0.02],
         tickformat='.1%',   # y축의 범위를 0부터 시작하도록 설정합니다.
     ),
     width=700,  # 그래프의 가로 크기
